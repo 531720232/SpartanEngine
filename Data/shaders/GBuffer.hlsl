@@ -1,6 +1,28 @@
-// = INCLUDES ========
+/*
+Copyright(c) 2016-2019 Panos Karabelas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+//= INCLUDES ==================
 #include "Common.hlsl"
-//====================
+#include "ParallaxMapping.hlsl"
+//=============================
 
 //= TEXTURES ===========================
 Texture2D texAlbedo 	: register (t0);
@@ -80,10 +102,10 @@ PixelOutputType mainPS(PixelInputType input)
 
 	float2 texCoords 		= float2(input.uv.x * materialTiling.x + materialOffset.x, input.uv.y * materialTiling.y + materialOffset.y);
 	float4 albedo			= materialAlbedoColor;
-	float roughness 		= clamp(materialRoughness, 0.0001f, 1.0f);
-	float metallic 			= clamp(materialMetallic, 0.0001f, 1.0f);
+	float roughness 		= materialRoughness;
+	float metallic 			= saturate(materialMetallic);
 	float3 normal			= input.normal.xyz;
-	float normalIntensity	= clamp(materialNormalStrength, 0.012f, materialNormalStrength);
+	float normal_intensity	= clamp(materialNormalStrength, 0.012f, materialNormalStrength);
 	float emission			= 0.0f;
 	float occlusion			= 1.0f;	
 	
@@ -94,16 +116,14 @@ PixelOutputType mainPS(PixelInputType input)
     float2 velocity 			= (position_delta - g_taa_jitterOffset) * float2(0.5f, -0.5f);
 	//=========================================================================================
 
+	// Make TBN
+	float3x3 TBN = makeTBN(input.normal, input.tangent);
+
 	#if HEIGHT_MAP
 		// Parallax Mapping
-		float height_scale 	= materialHeight * 0.01f;
-		float3 viewDir 		= normalize(g_camera_position - input.positionWS.xyz);
-		float height 		= texHeight.Sample(samplerAniso, texCoords).r;
-		float2 offset 		= viewDir.xy * (height * height_scale);
-		if(texCoords.x <= 1.0 && texCoords.y <= 1.0 && texCoords.x >= 0.0 && texCoords.y >= 0.0)
-		{
-			texCoords += offset;
-		}
+		float height_scale 		= materialHeight * 0.04f;
+		float3 camera_to_pixel 	= normalize(g_camera_position - input.positionWS.xyz);
+		texCoords 				= ParallaxMapping(texHeight, samplerAniso, texCoords, camera_to_pixel, TBN, height_scale);
 	#endif
 	
 	#if MASK_MAP
@@ -118,7 +138,14 @@ PixelOutputType mainPS(PixelInputType input)
 	#endif
 	
 	#if ROUGHNESS_MAP
-		roughness *= texRoughness.Sample(samplerAniso, texCoords).r;
+		if (materialRoughness >= 0.0f)
+		{
+			roughness *= texRoughness.Sample(samplerAniso, texCoords).r;
+		}
+		else
+		{
+			roughness *= 1.0f - texRoughness.Sample(samplerAniso, texCoords).r;
+		}
 	#endif
 	
 	#if METALLIC_MAP
@@ -126,17 +153,10 @@ PixelOutputType mainPS(PixelInputType input)
 	#endif
 	
 	#if NORMAL_MAP
-		// Make TBN
-		float3x3 TBN = makeTBN(input.normal, input.tangent);
-	
 		// Get tangent space normal and apply intensity
-		float3 normalSample = normalize(unpack(texNormal.Sample(samplerAniso, texCoords).rgb));
-		normalIntensity		= clamp(normalIntensity, 0.01f, 1.0f);
-		normalSample.x 		*= normalIntensity;
-		normalSample.y 		*= normalIntensity;
-		
-		// Transform to world space
-		normal = normalize(mul(normalSample, TBN).xyz);
+		float3 tangent_normal 	= normalize(unpack(texNormal.Sample(samplerAniso, texCoords).rgb));
+		tangent_normal.xy 		*= saturate(normal_intensity);
+		normal 					= normalize(mul(tangent_normal, TBN).xyz); // Transform to world space
 	#endif
 
 	#if OCCLUSION_MAP

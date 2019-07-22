@@ -35,11 +35,11 @@ using namespace Spartan;
 Widget_ResourceCache::Widget_ResourceCache(Context* context) : Widget(context)
 {
 	m_title			= "Resource Cache";
-	m_windowFlags	= ImGuiWindowFlags_HorizontalScrollbar;
-	m_isVisible		= false;
+	m_flags	        |= ImGuiWindowFlags_HorizontalScrollbar;
+	m_is_visible	= false;
 }
 
-void Widget_ResourceCache::Tick(float deltaTime)
+void Widget_ResourceCache::Tick()
 {
 	auto resourceCache		= m_context->GetSubsystem<ResourceCache>();
 	auto resources			= resourceCache->GetByType();
@@ -63,7 +63,7 @@ void Widget_ResourceCache::Tick(float deltaTime)
 		ImGui::Text(resource->GetResourceTypeCstr());					ImGui::NextColumn();
 
 		// ID
-		ImGui::Text(to_string(resource->GetResourceId()).c_str());		ImGui::NextColumn();
+		ImGui::Text(to_string(resource->GetId()).c_str());		ImGui::NextColumn();
 
 		// Name
 		ImGui::Text(resource->GetResourceName().c_str());				ImGui::NextColumn();

@@ -22,10 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma once
 
 //= INCLUDES =================
-#include "RHI_Definition.h"
-#include "RHI_Viewport.h"
-#include <memory>
-#include "../Math/Rectangle.h"
+#include "RHI_PipelineCache.h"
 //============================
 
 namespace Spartan
@@ -34,39 +31,32 @@ namespace Spartan
 	{
 	public:
 		RHI_Pipeline() = default;
+		RHI_Pipeline(const std::shared_ptr<RHI_Device>& rhi_device, const RHI_PipelineState& pipeline_state);
 		~RHI_Pipeline();
 	
-		bool Create();
-		void ImGuiDescriptorTest(uint32_t slot, void* texture);
-		
-		void* GetPipeline() const		{ return m_graphics_pipeline; }
-		void* GetPipelineLayout() const	{ return m_pipeline_layout; }
-		void* GetRenderPass() const		{ return m_render_pass; }
-		void* GetDescriptorSet() const	{ return m_descriptor_set; }
+		void UpdateDescriptorSets(RHI_Texture* texture = nullptr);
+		void OnCommandListConsumed();
 
-		std::shared_ptr<RHI_Device> m_rhi_device;
-		std::shared_ptr<RHI_Shader> m_shader_vertex;
-		std::shared_ptr<RHI_Shader> m_shader_pixel;
-		std::shared_ptr<RHI_ConstantBuffer> m_constant_buffer;
-		std::shared_ptr<RHI_InputLayout> m_input_layout;	
-		std::shared_ptr<RHI_RasterizerState> m_rasterizer_state;
-		std::shared_ptr<RHI_BlendState> m_blend_state;
-		std::shared_ptr<RHI_DepthStencilState> m_depth_stencil_state;
-		RHI_Viewport m_viewport;
-		Math::Rectangle m_scissor;
-		RHI_PrimitiveTopology_Mode m_primitive_topology;
-
-		// Temp
-		std::shared_ptr<RHI_Texture> m_texture;
-		std::shared_ptr<RHI_Sampler> m_sampler;
+		auto GetPipeline() const					{ return m_pipeline; }
+		auto GetPipelineLayout() const				{ return m_pipeline_layout; }
+		auto GetState() const						{ return m_state; }
+		auto GetDescriptorSet(const uint32_t id) 	{ return m_descriptor_set_cache.count(id) ? m_descriptor_set_cache[id] : nullptr; }
+		auto GetDescriptorSet()						{ return !m_descriptor_set_cache.empty() ? m_descriptor_set_cache.begin()->second : nullptr; }
 
 	private:
-		void* m_graphics_pipeline		= nullptr;
-		void* m_pipeline_layout			= nullptr;
-		void* m_render_pass				= nullptr;
-		void* m_descriptor_pool			= nullptr;
-		uint32_t m_descriptor_count		= 0;
-		void* m_descriptor_set_layout	= nullptr;
-		void* m_descriptor_set			= nullptr;
+		bool CreateDescriptorPool();
+		bool CreateDescriptorSetLayout();
+		void ReflectShaders();
+		
+		// API
+		void* m_pipeline					= nullptr;
+		void* m_pipeline_layout				= nullptr;
+		void* m_descriptor_pool				= nullptr;
+		void* m_descriptor_set_layout		= nullptr;
+		std::map<uint32_t, void*> m_descriptor_set_cache;
+		uint32_t m_descriptor_set_capacity	= 20;
+		const RHI_PipelineState* m_state	= nullptr;
+		std::map<std::string, Shader_Resource> m_shader_resources;
+		std::shared_ptr<RHI_Device> m_rhi_device;
 	};
 }

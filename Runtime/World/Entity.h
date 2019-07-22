@@ -23,8 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //= INCLUDES =====================
 #include <vector>
-#include "Components/IComponent.h"
 #include "../Core/EventSystem.h"
+#include "Components/IComponent.h"
 //================================
 
 namespace Spartan
@@ -34,7 +34,7 @@ namespace Spartan
 	class Renderable;
 	#define VALIDATE_COMPONENT_TYPE(T) static_assert(std::is_base_of<IComponent, T>::value, "Provided type does not implement IComponent")
 
-	class SPARTAN_CLASS Entity : public std::enable_shared_from_this<Entity>
+	class SPARTAN_CLASS Entity : public Spartan_Object, public std::enable_shared_from_this<Entity>
 	{
 	public:
 		Entity(Context* context);
@@ -43,11 +43,11 @@ namespace Spartan
 		void Initialize(Transform* transform);
 		void Clone();
 
-		//===========
+		//==========================
 		void Start();
 		void Stop();
-		void Tick();
-		//===========
+		void Tick(float delta_time);
+		//==========================
 
 		void Serialize(FileStream* stream);
 		void Deserialize(FileStream* stream, Transform* parent);
@@ -55,9 +55,6 @@ namespace Spartan
 		//= PROPERTIES ===================================================================================================
 		const std::string& GetName() const								{ return m_name; }
 		void SetName(const std::string& name)							{ m_name = name; }
-
-		unsigned int GetId() const										{ return m_id; }
-		void SetId(const unsigned int id)								{ m_id = id; }
 
 		bool IsActive() const											{ return m_is_active; }
 		void SetActive(const bool active)								{ m_is_active = active; }
@@ -188,7 +185,7 @@ namespace Spartan
 			FIRE_EVENT(Event_World_Resolve);
 		}
 
-		void RemoveComponentById(unsigned int id);
+		void RemoveComponentById(uint32_t id);
 		const auto& GetAllComponents() const { return m_components; }
 
 		// Direct access for performance critical usage (not safe)
@@ -197,7 +194,6 @@ namespace Spartan
 		std::shared_ptr<Entity> GetPtrShared()		{ return shared_from_this(); }
 
 	private:
-		unsigned int m_id			= 0;
 		std::string m_name			= "Entity";
 		bool m_is_active			= true;
 		bool m_hierarchy_visibility	= true;

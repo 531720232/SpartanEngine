@@ -34,7 +34,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 namespace Spartan
 {
 	class Entity;
-	struct RHI_Vertex_PosUvNorTan;
 
 	enum FileStream_Mode : uint32_t
 	{
@@ -49,7 +48,7 @@ namespace Spartan
 		FileStream(const std::string& path, uint32_t flags);
 		~FileStream();
 
-		bool IsOpen() { return m_is_open; }
+		auto IsOpen() const { return m_is_open; }
 		void Close();
 
 		//= WRITING ==================================================
@@ -59,7 +58,7 @@ namespace Spartan
 			std::is_same<T, int>::value					||
 			std::is_same<T, long>::value				||
 			std::is_same<T, long long>::value			||
-			std::is_same<T, unsigned>::value			||
+			std::is_same<T, uint32_t>::value			||
 			std::is_same<T, unsigned long>::value		||
 			std::is_same<T, unsigned long long>::value	||
 			std::is_same<T, float>::value				||
@@ -79,11 +78,11 @@ namespace Spartan
 
 		void Write(const std::string& value);
 		void Write(const std::vector<std::string>& value);
-		void Write(const std::vector<RHI_Vertex_PosUvNorTan>& value);
-		void Write(const std::vector<unsigned int>& value);
+		void Write(const std::vector<RHI_Vertex_PosTexNorTan>& value);
+		void Write(const std::vector<uint32_t>& value);
 		void Write(const std::vector<unsigned char>& value);
 		void Write(const std::vector<std::byte>& value);
-		void Skip(unsigned int n);
+		void Skip(uint32_t n);
 		//===========================================================
 		
 		//= READING ===========================================
@@ -94,7 +93,7 @@ namespace Spartan
 			std::is_same<T, int>::value					||
 			std::is_same<T, long>::value				||
 			std::is_same<T, long long>::value			||
-			std::is_same<T, unsigned>::value			||
+			std::is_same<T, uint32_t>::value			||
 			std::is_same<T, unsigned long>::value		||
 			std::is_same<T, unsigned long long>::value	||
 			std::is_same<T, float>::value				||
@@ -113,8 +112,8 @@ namespace Spartan
 		}
 		void Read(std::string* value);
 		void Read(std::vector<std::string>* vec);
-		void Read(std::vector<RHI_Vertex_PosUvNorTan>* vec);
-		void Read(std::vector<unsigned int>* vec);
+		void Read(std::vector<RHI_Vertex_PosTexNorTan>* vec);
+		void Read(std::vector<uint32_t>* vec);
 		void Read(std::vector<unsigned char>* vec);
 		void Read(std::vector<std::byte>* vec);
 
@@ -126,7 +125,7 @@ namespace Spartan
 			std::is_same<T, int>::value					||
 			std::is_same<T, long>::value				||
 			std::is_same<T, long long>::value			||
-			std::is_same<T, unsigned int>::value		||
+			std::is_same<T, uint32_t>::value			||
 			std::is_same<T, unsigned long>::value		||
 			std::is_same<T, unsigned long long>::value	||
 			std::is_same<T, float>::value				||

@@ -1,3 +1,24 @@
+/*
+Copyright(c) 2016-2019 Panos Karabelas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #include "Common_Vertex.hlsl"
 #include "Common_Buffer.hlsl"
 
@@ -17,7 +38,7 @@ struct Material
 	float roughness;
 	float metallic;
 	float3 padding;
-	float emission;
+	float emissive;
 	float3 F0;
 	float roughness_alpha;
 };
@@ -62,9 +83,13 @@ float2 pack(float2 value)	{ return value * 0.5f + 0.5f; }
 /*------------------------------------------------------------------------------
 								[NORMALS]
 ------------------------------------------------------------------------------*/
-inline float3x3 makeTBN(float3 n, float3 t)
+float3x3 makeTBN(float3 n, float3 t)
 {
+	// re-orthogonalize T with respect to N
+	t = normalize(t - dot(t, n) * n);
+	// compute bitangent
 	float3 b = cross(n, t);
+	// create matrix
 	return float3x3(t, b, n); 
 }
 // No decoding required
@@ -145,13 +170,9 @@ float2 directionToSphereUV(float3 direction)
 /*------------------------------------------------------------------------------
 								[RANDOM]
 ------------------------------------------------------------------------------*/
-float randomize(float2 texcoord)
+float randomize(float2 uv)
 {
-    float seed		= dot(texcoord, float2(12.9898, 78.233));
-    float sine		= sin(seed);
-    float noise		= frac(sine * 43758.5453);
-
-    return noise;
+	return frac(sin(dot(uv ,float2(12.9898,78.233))) * 43758.5453);
 }
 
 /*------------------------------------------------------------------------------

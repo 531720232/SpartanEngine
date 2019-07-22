@@ -25,59 +25,35 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "World/Entity.h"
 #include "World/Components/Camera.h"
 #include "Widget_World.h"
-#include "Core/Settings.h"
-#include "../DragDrop.h"
+#include "../ImGui_Extension.h"
+#include "Core/Timer.h"
 //==================================
 
-//= NAMESPACES ==========
+//= NAMESPACES =========
 using namespace std;
 using namespace Spartan;
 using namespace Math;
-//=======================
-
-namespace _Widget_Viewport
-{
-	static Renderer* g_renderer	= nullptr;
-	static World* g_world		= nullptr;
-	float g_window_padding		= 4.0f;
-}
+//======================
 
 Widget_Viewport::Widget_Viewport(Context* context) : Widget(context)
 {
-	m_title						= "Viewport";
-	m_timeSinceLastResChange	= 0.0f;
-
-	m_windowFlags |= ImGuiWindowFlags_NoScrollbar;
-	_Widget_Viewport::g_renderer	= m_context->GetSubsystem<Renderer>().get();
-	_Widget_Viewport::g_world		= m_context->GetSubsystem<World>().get();
-	m_xMin = 400;
-	m_yMin = 250;
+	m_title     = "Viewport";
+    m_size      = Vector2(400, 250);
+	m_flags     |= ImGuiWindowFlags_NoScrollbar;
+    m_padding   = Vector2(4.0f);
+    m_renderer  = m_context->GetSubsystem<Renderer>().get();
+    m_world     = m_context->GetSubsystem<World>().get();
 }
 
-bool Widget_Viewport::Begin()
+void Widget_Viewport::Tick()
 {
-	ImGui::SetNextWindowSize(ImVec2(m_xMin, m_yMin), ImGuiCond_FirstUseEver);
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(_Widget_Viewport::g_window_padding, _Widget_Viewport::g_window_padding));
-	ImGui::Begin(m_title.c_str(), &m_isVisible, m_windowFlags);
-
-	return true;
-}
-
-void Widget_Viewport::Tick(const float delta_time)
-{
-	if (!_Widget_Viewport::g_renderer)
+	if (!m_renderer)
 		return;
 	
-	ShowFrame(delta_time);
-	ImGui::PopStyleVar();
-}
-
-void Widget_Viewport::ShowFrame(const float delta_time)
-{
 	// Get current frame window resolution
 	auto width			= static_cast<unsigned int>(ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x);
 	auto height			= static_cast<unsigned int>(ImGui::GetWindowContentRegionMax().y - ImGui::GetWindowContentRegionMin().y);
-	const auto max_res	= _Widget_Viewport::g_renderer->GetMaxResolution();
+	const auto max_res	= m_renderer->GetMaxResolution();
 	if (width > max_res || height > max_res)
 		return;
 
@@ -86,23 +62,28 @@ void Widget_Viewport::ShowFrame(const float delta_time)
 	height	-= (height	% 2 != 0) ? 1 : 0;
 
 	// Update engine's viewport
-	_Widget_Viewport::g_renderer->viewport_editor_offset = Vector2(ImGui::GetWindowPos()) + _Widget_Viewport::g_window_padding;
-	_Widget_Viewport::g_renderer->SetViewport(RHI_Viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)));
+	m_renderer->viewport_editor_offset = Vector2(ImGui::GetWindowPos()) + m_window_padding;
+	m_viewport.width	= static_cast<float>(width);
+	m_viewport.height	= static_cast<float>(height);
+	m_renderer->SetViewport(m_viewport);
 
 	// Update engine's resolution
 	if (m_timeSinceLastResChange >= 0.1f) // Don't stress the GPU too much
 	{
-		_Widget_Viewport::g_renderer->SetResolution(width, height);
-		m_timeSinceLastResChange = 0;
+		const auto& current_resolution = m_renderer->GetResolution();
+		if (current_resolution.x != width || current_resolution.y != height) // Change only when needed
+		{
+            m_renderer->SetResolution(width, height);
+			m_timeSinceLastResChange = 0;
+		}
 	}
-	m_timeSinceLastResChange += delta_time;
+	m_timeSinceLastResChange += m_context->GetSubsystem<Timer>()->GetDeltaTimeSec();
 
 	// Draw the image after a potential Renderer::SetResolution() call has been made
-	ImGui::Image(
-		_Widget_Viewport::g_renderer->GetFrameShaderResource(),
+	ImGuiEx::Image
+	(
+        m_renderer->GetFrameTexture(),
 		ImVec2(static_cast<float>(width), static_cast<float>(height)),
-		ImVec2(0, 0),
-		ImVec2(1, 1),
 		ImColor(255, 255, 255, 255),
 		ImColor(50, 127, 166, 255)
 	);
@@ -115,7 +96,7 @@ void Widget_Viewport::ShowFrame(const float delta_time)
 	}
 
 	// Handle model drop
-	if (auto payload = DragDrop::Get().GetPayload(DragPayload_Model))
+	if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_Model))
 	{
 		EditorHelper::Get().LoadModel(get<const char*>(payload->data));
 	}

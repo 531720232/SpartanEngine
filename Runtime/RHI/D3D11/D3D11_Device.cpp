@@ -37,20 +37,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../Logging/Log.h"
 #include "../../Profiling/Profiler.h"
 #include "../../Core/Settings.h"
+#include "../../Core/Context.h"
 #include "../../Math/Rectangle.h"
 #include "../../FileSystem/FileSystem.h"
 //======================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-//=============================
+//============================
 
 namespace Spartan
 {
-	RHI_Device::RHI_Device()
+	RHI_Device::RHI_Device(Context* context)
 	{
-		m_rhi_context = new RHI_Context();
+        m_context       = context;
+		m_rhi_context   = make_shared<RHI_Context>();      
 		const static auto multithread_protection = false;
 
 		// Detect adapters
@@ -58,40 +60,53 @@ namespace Spartan
 
 		// Create device
 		{
-			// Flags
-			UINT device_flags = 0;
-			#ifdef DEBUG // Enable debug layer
-			device_flags |= D3D11_CREATE_DEVICE_DEBUG;
-			#endif
+            // Flags
+            UINT device_flags = 0;
+            #ifdef DEBUG // Enable debug layer
+            device_flags |= D3D11_CREATE_DEVICE_DEBUG;
+            #endif
 
-			// The order of the feature levels that we'll try to create a device with
-			vector<D3D_FEATURE_LEVEL> feature_levels =
-			{
-				D3D_FEATURE_LEVEL_11_1,
-				D3D_FEATURE_LEVEL_11_0,
-				D3D_FEATURE_LEVEL_10_1,
-				D3D_FEATURE_LEVEL_10_0,
-				D3D_FEATURE_LEVEL_9_3,
-				D3D_FEATURE_LEVEL_9_2,
-				D3D_FEATURE_LEVEL_9_1
-			};
+            // The order of the feature levels that we'll try to create a device with
+            vector<D3D_FEATURE_LEVEL> feature_levels =
+            {
+                D3D_FEATURE_LEVEL_11_1,
+                D3D_FEATURE_LEVEL_11_0,
+                D3D_FEATURE_LEVEL_10_1,
+                D3D_FEATURE_LEVEL_10_0,
+                D3D_FEATURE_LEVEL_9_3,
+                D3D_FEATURE_LEVEL_9_2,
+                D3D_FEATURE_LEVEL_9_1
+            };
 
-			auto adapter		= static_cast<IDXGIAdapter*>(m_primaryAdapter->data);
-			auto driver_type	= adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE;
+            auto adapter = static_cast<IDXGIAdapter*>(m_primaryAdapter->data);
+            auto driver_type = adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE;
+
+            auto create_device = [this, &adapter, &driver_type, &device_flags, &feature_levels]()
+            {
+                return D3D11CreateDevice(
+                    adapter,									// pAdapter: If nullptr, the default adapter will be used
+                    driver_type,								// DriverType
+                    nullptr,									// HMODULE: nullptr because DriverType = D3D_DRIVER_TYPE_HARDWARE
+                    device_flags,								// Flags
+                    feature_levels.data(),						// pFeatureLevels
+                    static_cast<UINT>(feature_levels.size()),	// FeatureLevels
+                    D3D11_SDK_VERSION,							// SDKVersion
+                    &m_rhi_context->device,						// ppDevice
+                    nullptr,									// pFeatureLevel
+                    &m_rhi_context->device_context				// ppImmediateContext
+                );
+            };
 
 			// Create Direct3D device and Direct3D device context.
-			const auto result = D3D11CreateDevice(
-				adapter,									// pAdapter: If nullptr, the default adapter will be used
-				driver_type,								// DriverType
-				nullptr,									// HMODULE: nullptr because DriverType = D3D_DRIVER_TYPE_HARDWARE
-				device_flags,								// Flags
-				feature_levels.data(),						// pFeatureLevels
-				static_cast<UINT>(feature_levels.size()),	// FeatureLevels
-				D3D11_SDK_VERSION,							// SDKVersion
-				&m_rhi_context->device,						// ppDevice
-				nullptr,									// pFeatureLevel
-				&m_rhi_context->device_context				// ppImmediateContext
-			);
+            auto result = create_device();
+
+            // Using the D3D11_CREATE_DEVICE_DEBUG flag, requires the SDK to be installed, so try again without it
+            if (result == DXGI_ERROR_SDK_COMPONENT_MISSING)
+            {
+                LOG_WARNING("Failed to create device with D3D11_CREATE_DEVICE_DEBUG flag. Attempting to create device without a debug flag.");
+                device_flags &= ~D3D11_CREATE_DEVICE_DEBUG;
+                result = create_device();
+            }
 
 			if (FAILED(result))
 			{
@@ -104,8 +119,10 @@ namespace Spartan
 		{
 			auto log_feature_level = [this](const std::string& level)
 			{
-				Settings::Get().m_versionGraphicsAPI = "DirectX " + level;
-				LOG_INFO(Settings::Get().m_versionGraphicsAPI);
+                auto& settings = m_context->GetSubsystem<Settings>();
+                settings->m_versionGraphicsAPI = level;
+                Log::m_caller_name.clear();
+				Log::Write("Spartan::RHI_Device: DirectX " + settings->m_versionGraphicsAPI, Log_Info);
 			};
 
 			switch (m_rhi_context->device->GetFeatureLevel())
@@ -174,7 +191,6 @@ namespace Spartan
 		safe_release(m_rhi_context->device_context);
 		safe_release(m_rhi_context->device);
 		safe_release(m_rhi_context->annotation);
-		safe_delete(m_rhi_context);
 	}
 
 	bool RHI_Device::ProfilingCreateQuery(void** query, const RHI_Query_Type type) const
@@ -274,7 +290,7 @@ namespace Spartan
 		query->Release();
 	}
 
-	unsigned int RHI_Device::ProfilingGetGpuMemory()
+	uint32_t RHI_Device::ProfilingGetGpuMemory()
 	{
 		if (auto adapter = static_cast<IDXGIAdapter3*>(m_primaryAdapter->data))
 		{
@@ -284,12 +300,12 @@ namespace Spartan
 				LOG_ERROR("Failed to get adapter description");
 				return 0;
 			}
-			return static_cast<unsigned int>(adapter_desc.DedicatedVideoMemory / 1024 / 1024); // convert to MBs
+			return static_cast<uint32_t>(adapter_desc.DedicatedVideoMemory / 1024 / 1024); // convert to MBs
 		}
 		return 0;
 	}
 
-	unsigned int RHI_Device::ProfilingGetGpuMemoryUsage()
+	uint32_t RHI_Device::ProfilingGetGpuMemoryUsage()
 	{
 		if (auto adapter = static_cast<IDXGIAdapter3*>(m_primaryAdapter->data))
 		{
@@ -299,7 +315,7 @@ namespace Spartan
 				LOG_ERROR("Failed to get adapter memory info");
 				return 0;
 			}
-			return static_cast<unsigned int>(info.CurrentUsage / 1024 / 1024); // convert to MBs
+			return static_cast<uint32_t>(info.CurrentUsage / 1024 / 1024); // convert to MBs
 		}
 		return 0;
 	}

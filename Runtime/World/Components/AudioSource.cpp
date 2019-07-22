@@ -26,11 +26,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../Resource/ResourceCache.h"
 //=======================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-using namespace Helper;
-//=============================
+//============================
 
 namespace Spartan
 {
@@ -77,7 +76,7 @@ namespace Spartan
 		m_audio_clip->Stop();
 	}
 	
-	void AudioSource::OnTick()
+	void AudioSource::OnTick(float delta_time)
 	{
 		if (!m_audio_clip)
 			return;

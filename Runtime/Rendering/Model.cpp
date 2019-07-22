@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Material.h"
 #include "../IO/FileStream.h"
 #include "../Core/Stopwatch.h"
+#include "../Resource/ResourceCache.h"
 #include "../World/Entity.h"
 #include "../World/Components/Transform.h"
 #include "../World/Components/Renderable.h"
@@ -34,7 +35,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../RHI/RHI_VertexBuffer.h"
 #include "../RHI/RHI_IndexBuffer.h"
 #include "../RHI/RHI_Texture2D.h"
-#include "../Resource/ResourceCache.h"
 //=========================================
 
 //= NAMESPACES ================
@@ -79,7 +79,7 @@ namespace Spartan
 			}
 			else // abort
 			{
-				LOG_WARNING("Failed to load model. Unable to find supported file in \"" + FileSystem::GetDirectoryFromFilePath(file_path) + "\".");
+				LOGF_WARNING("Failed to load model. Unable to find supported file in \"%s\".", FileSystem::GetDirectoryFromFilePath(file_path).c_str());
 				return false;
 			}
 		}
@@ -87,7 +87,7 @@ namespace Spartan
 		const auto engine_format = FileSystem::GetExtensionFromFilePath(model_file_path) == EXTENSION_MODEL;
 		const auto success = engine_format ? LoadFromEngineFormat(model_file_path) : LoadFromForeignFormat(model_file_path);
 
-		GeometryComputeMemoryUsage();
+		m_size = GeometryComputeMemoryUsage();
 		LOGF_INFO("Loading \"%s\" took %d ms", FileSystem::GetFileNameFromFilePath(file_path).c_str(), static_cast<int>(timer.GetElapsedTimeMs()));
 
 		return success;
@@ -109,7 +109,7 @@ namespace Spartan
 	}
 	//=======================================================
 
-	void Model::GeometryAppend(std::vector<unsigned int>& indices, std::vector<RHI_Vertex_PosUvNorTan>& vertices, unsigned int* index_offset, unsigned int* vertex_offset) const
+	void Model::GeometryAppend(std::vector<uint32_t>& indices, std::vector<RHI_Vertex_PosTexNorTan>& vertices, uint32_t* index_offset, uint32_t* vertex_offset) const
 	{
 		if (indices.empty() || vertices.empty())
 		{
@@ -122,7 +122,7 @@ namespace Spartan
 		m_mesh->Vertices_Append(vertices, vertex_offset);
 	}
 
-	void Model::GeometryGet(const unsigned int index_offset, const unsigned int index_count, const unsigned int vertex_offset, const unsigned int vertex_count, vector<unsigned int>* indices, vector<RHI_Vertex_PosUvNorTan>* vertices) const
+	void Model::GeometryGet(const uint32_t index_offset, const uint32_t index_count, const uint32_t vertex_offset, const uint32_t vertex_count, vector<uint32_t>* indices, vector<RHI_Vertex_PosTexNorTan>* vertices) const
 	{
 		m_mesh->Geometry_Get(index_offset, index_count, vertex_offset, vertex_count, indices, vertices);
 	}
@@ -205,7 +205,7 @@ namespace Spartan
 		else if (!texture)
 		{
 			// Load texture
-			bool generate_mipmaps = true;
+			auto generate_mipmaps = true;
 			texture = make_shared<RHI_Texture2D>(m_context, generate_mipmaps);
 			texture->LoadFromFile(file_path);
 
@@ -260,7 +260,7 @@ namespace Spartan
 		SetResourceName(FileSystem::GetFileNameNoExtensionFromFilePath(file_path)); // Sponza
 
 		// Load the model
-		if (m_resource_manager->GetModelImporter()->Load(std::dynamic_pointer_cast<Model>(GetSharedPtr()), file_path))
+		if (m_resource_manager->GetModelImporter()->Load(this, file_path))
 		{
 			// Set the normalized scale to the root entity's transform
 			m_normalized_scale = GeometryComputeNormalizedScale();
@@ -281,8 +281,8 @@ namespace Spartan
 		auto success = true;
 
 		// Get geometry
-		auto indices	= m_mesh->Indices_Get();
-		auto vertices	= m_mesh->Vertices_Get();
+		const auto indices	= m_mesh->Indices_Get();
+		const auto vertices	= m_mesh->Vertices_Get();
 
 		if (!indices.empty())
 		{
@@ -326,14 +326,14 @@ namespace Spartan
 		return 1.0f / scale_offset;
 	}
 
-	unsigned int Model::GeometryComputeMemoryUsage() const
+	uint32_t Model::GeometryComputeMemoryUsage() const
 	{
 		// Vertices & Indices
 		auto size = !m_mesh ? 0 : m_mesh->Geometry_MemoryUsage();
 
 		// Buffers
-		size += static_cast<unsigned int>(m_vertex_buffer->GetSize());
-		size += static_cast<unsigned int>(m_index_buffer->GetSize());
+		size += static_cast<uint32_t>(m_vertex_buffer->GetSize());
+		size += static_cast<uint32_t>(m_index_buffer->GetSize());
 
 		return size;
 	}

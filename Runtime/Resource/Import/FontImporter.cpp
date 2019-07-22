@@ -32,18 +32,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../RHI/RHI_Texture2D.h"
 //=====================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-using namespace Helper;
-//=============================
+//============================
 
 namespace Spartan
 {
 	// A minimum size for a texture holding all visible ASCII characters
-	static const unsigned int GLYPH_START		= 32;
-	static const unsigned int GLYPH_END			= 127;
-	static const unsigned int ATLAS_MAX_WIDTH	= 512;
+	static const uint32_t GLYPH_START		= 32;
+	static const uint32_t GLYPH_END			= 127;
+	static const uint32_t ATLAS_MAX_WIDTH	= 512;
 
 	FT_UInt32 g_char_flags = FT_LOAD_DEFAULT | FT_LOAD_RENDER;
 
@@ -165,26 +164,26 @@ namespace Spartan
 			return true;
 		}
 
-		inline unsigned int GetCharacterMaxHeight(FT_Face& face)
+		inline uint32_t GetCharacterMaxHeight(FT_Face& face)
 		{
-			unsigned int max_height = 0;
-			for (unsigned int i = GLYPH_START; i < GLYPH_END; i++)
+			uint32_t max_height = 0;
+			for (uint32_t i = GLYPH_START; i < GLYPH_END; i++)
 			{
 				if (HandleError(FT_Load_Char(face, i, g_char_flags)))
 					continue;
 
 				FT_Bitmap* bitmap	= &face->glyph->bitmap;
-				max_height			= Max<unsigned int>(max_height, bitmap->rows);
+				max_height			= Max<uint32_t>(max_height, bitmap->rows);
 			}
 
 			return max_height;
 		}
 
-		inline void ComputeAtlasTextureDimensions(FT_Face& face, unsigned int* atlas_width, unsigned int* atlas_height, unsigned int* row_height)
+		inline void ComputeAtlasTextureDimensions(FT_Face& face, uint32_t* atlas_width, uint32_t* atlas_height, uint32_t* row_height)
 		{
-			unsigned int pen_x = 0;
+			uint32_t pen_x = 0;
 			(*row_height) = GetCharacterMaxHeight(face);
-			for (unsigned int i = GLYPH_START; i < GLYPH_END; i++)
+			for (uint32_t i = GLYPH_START; i < GLYPH_END; i++)
 			{
 				if (HandleError(FT_Load_Char(face, i, g_char_flags)))
 					continue;
@@ -192,7 +191,7 @@ namespace Spartan
 				FT_Bitmap* bitmap = &face->glyph->bitmap;
 
 				pen_x			+= bitmap->width + 1;
-				(*atlas_height)	= Max<unsigned int>((*atlas_height), bitmap->rows);
+				(*atlas_height)	= Max<uint32_t>((*atlas_height), bitmap->rows);
 
 				// If the pen is about to exceed ATLAS_MAX_WIDTH we have to switch row. 
 				// Hence, the height of the texture atlas must increase to fit that row.
@@ -221,7 +220,7 @@ namespace Spartan
 		FT_Int minor;
 		FT_Int rev;
 		FT_Library_Version(m_library, &major, &minor, &rev);
-		Settings::Get().m_versionFreeType = to_string(major) + "." + to_string(minor) + "." + to_string(rev);
+        m_context->GetSubsystem<Settings>()->m_versionFreeType = to_string(major) + "." + to_string(minor) + "." + to_string(rev);
 	}
 
 	FontImporter::~FontImporter()
@@ -267,17 +266,17 @@ namespace Spartan
 		}
 
 		// Estimate the size of the font atlas texture	
-		unsigned int atlas_width	= 0;
-		unsigned int atlas_height	= 0;	
-		unsigned int row_height		= 0;
+		uint32_t atlas_width	= 0;
+		uint32_t atlas_height	= 0;	
+		uint32_t row_height		= 0;
 		FreeTypeHelper::ComputeAtlasTextureDimensions(face, &atlas_width, &atlas_height, &row_height);	
 		std::vector<std::byte> atlas_buffer;
 		atlas_buffer.resize(atlas_width * atlas_height);
 		atlas_buffer.reserve(atlas_buffer.size());
 
 		// Go through each glyph
-		unsigned int pen_x = 0, pen_y = 0;
-		for (unsigned int i = GLYPH_START; i < GLYPH_END; i++)
+		uint32_t pen_x = 0, pen_y = 0;
+		for (uint32_t i = GLYPH_START; i < GLYPH_END; i++)
 		{
 			// Skip problematic glyphs
 			if (FreeTypeHelper::HandleError(FT_Load_Char(face, i, g_char_flags)))
@@ -294,12 +293,12 @@ namespace Spartan
 			}
 
 			// Read char bytes into atlas position
-			for (unsigned int y = 0; y < bitmap->rows; y++)
+			for (uint32_t y = 0; y < bitmap->rows; y++)
 			{
-				for (unsigned int x = 0; x < bitmap->width; x++)
+				for (uint32_t x = 0; x < bitmap->width; x++)
 				{
-					unsigned int _x	= pen_x + x;
-					unsigned int _y	= pen_y + y;
+					uint32_t _x	= pen_x + x;
+					uint32_t _y	= pen_y + y;
 					auto atlas_pos	= _x + _y * atlas_width;
 					SPARTAN_ASSERT(atlas_buffer.size() > atlas_pos);
 
@@ -310,7 +309,7 @@ namespace Spartan
 						} break;
 
 						case FT_PIXEL_MODE_GRAY: {					
-							atlas_buffer[atlas_pos] = static_cast<byte>(bitmap->buffer[x + y * bitmap->width]);
+							atlas_buffer[atlas_pos] = static_cast<std::byte>(bitmap->buffer[x + y * bitmap->width]);
 						} break;
 
 						case FT_PIXEL_MODE_BGRA: {
@@ -363,7 +362,7 @@ namespace Spartan
 		FT_Done_Face(face);
 
 		// Create a font texture atlas form the provided data
-		font->SetAtlas(move(static_pointer_cast<RHI_Texture>(make_shared<RHI_Texture2D>(m_context, atlas_width, atlas_height, 1, Format_R8_UNORM, atlas_buffer))));
+		font->SetAtlas(move(static_pointer_cast<RHI_Texture>(make_shared<RHI_Texture2D>(m_context, atlas_width, atlas_height, Format_R8_UNORM, atlas_buffer))));
 
 		return true;
 	}

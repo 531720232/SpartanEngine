@@ -23,10 +23,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //= INCLUDES =================
 #include <vector>
-#include "RHI_Definition.h"
+#include "RHI_Texture.h"
 #include "RHI_Viewport.h"
-#include "../Math/Rectangle.h"
+#include "RHI_Definition.h"
 #include "../Math/Vector4.h"
+#include "../Math/Rectangle.h"
 //============================
 
 namespace Spartan
@@ -62,11 +63,9 @@ namespace Spartan
 	{
 		RHI_Command()
 		{
-			const unsigned int max_count = 10;
+			const uint32_t max_count = 10;
 			render_targets.reserve(max_count);
 			render_targets.resize(max_count);
-			textures.reserve(max_count);
-			textures.resize(max_count);
 			samplers.reserve(max_count);
 			samplers.resize(max_count);
 			constant_buffers.reserve(max_count);
@@ -79,6 +78,7 @@ namespace Spartan
 			render_target_count			= 0;
 			textures_start_slot			= 0;
 			texture_count				= 0;
+			textures					= nullptr;
 			samplers_start_slot			= 0;
 			sampler_count				= 0;
 			constant_buffers_start_slot	= 0;
@@ -89,7 +89,6 @@ namespace Spartan
 			depth_clear					= 0;
 			depth_clear_stencil			= 0;
 			depth_clear_flags			= 0;
-	
 			vertex_count				= 0;
 			vertex_offset				= 0;
 			index_count					= 0;
@@ -100,32 +99,32 @@ namespace Spartan
 			buffer_index				= nullptr;
 			buffer_vertex				= nullptr;
 			shader_vertex				= nullptr;
-			shader_pixel				= nullptr;
-			pass_name					= "N/A";
+			shader_pixel				= nullptr;			
 			primitive_topology			= PrimitiveTopology_NotAssigned;
+            pass_name                   = "N/A";
 		}
 
 		RHI_Cmd_Type type;
 
 		// Render targets
-		unsigned int render_target_count = 0;
+		uint32_t render_target_count = 0;
 		std::vector<void*> render_targets;
 		void* render_target_clear;
 		Math::Vector4 render_target_clear_color;
 
 		// Texture
-		unsigned int textures_start_slot = 0;
-		unsigned int texture_count = 0;
-		std::vector<void*> textures;
+		uint32_t textures_start_slot	= 0;
+		uint32_t texture_count			= 0;
+		const void* textures			= nullptr;
 
 		// Samplers
-		unsigned int samplers_start_slot = 0;
-		unsigned int sampler_count = 0;
+		uint32_t samplers_start_slot = 0;
+		uint32_t sampler_count = 0;
 		std::vector<void*> samplers;
 
 		// Constant buffers
-		unsigned int constant_buffers_start_slot = 0;
-		unsigned int constant_buffer_count = 0;
+		uint32_t constant_buffers_start_slot = 0;
+		uint32_t constant_buffer_count = 0;
 		RHI_Buffer_Scope constant_buffers_scope;
 		std::vector<void*> constant_buffers;	
 
@@ -133,23 +132,24 @@ namespace Spartan
 		const RHI_DepthStencilState* depth_stencil_state	= nullptr;
 		void* depth_stencil									= nullptr;
 		float depth_clear									= 0;
-		unsigned int depth_clear_stencil					= 0;
-		unsigned int depth_clear_flags						= 0;
+		uint32_t depth_clear_stencil						= 0;
+		uint32_t depth_clear_flags							= 0;
 
 		// Misc	
-		std::string pass_name								= "N/A";
-		RHI_PrimitiveTopology_Mode primitive_topology		= PrimitiveTopology_NotAssigned;
-		unsigned int vertex_count							= 0;
-		unsigned int vertex_offset							= 0;
-		unsigned int index_count							= 0;
-		unsigned int index_offset							= 0;		
-		const RHI_InputLayout* input_layout					= nullptr;	
-		const RHI_RasterizerState* rasterizer_state			= nullptr;
-		const RHI_BlendState* blend_state					= nullptr;
-		const RHI_IndexBuffer* buffer_index					= nullptr;
-		const RHI_VertexBuffer* buffer_vertex				= nullptr;
-		const RHI_Shader* shader_vertex						= nullptr;
-		const RHI_Shader* shader_pixel						= nullptr;
+		bool is_array                                   = true;
+		std::string pass_name                           = "N/A";
+		RHI_PrimitiveTopology_Mode primitive_topology	= PrimitiveTopology_NotAssigned;
+		uint32_t vertex_count							= 0;
+		uint32_t vertex_offset							= 0;
+		uint32_t index_count							= 0;
+		uint32_t index_offset							= 0;		
+		const RHI_InputLayout* input_layout				= nullptr;	
+		const RHI_RasterizerState* rasterizer_state		= nullptr;
+		const RHI_BlendState* blend_state				= nullptr;
+		const RHI_IndexBuffer* buffer_index				= nullptr;
+		const RHI_VertexBuffer* buffer_vertex			= nullptr;
+		const RHI_Shader* shader_vertex					= nullptr;
+		const RHI_Shader* shader_pixel					= nullptr;
 		RHI_Viewport viewport;
 		Math::Rectangle scissor_rectangle;
 	};
@@ -160,57 +160,69 @@ namespace Spartan
 		RHI_CommandList(const std::shared_ptr<RHI_Device>& rhi_device, Profiler* profiler);
 		~RHI_CommandList();
 
-		void Begin(const std::string& pass_name, void* render_pass = nullptr, RHI_SwapChain* swap_chain = nullptr);
+		// Markers
+		void Begin(const std::string& pass_name, RHI_Pipeline* pipeline = nullptr);
 		void End();
 
-		void Draw(unsigned int vertex_count);
-		void DrawIndexed(unsigned int index_count, unsigned int index_offset, unsigned int vertex_offset);
+		// Draw
+		void Draw(uint32_t vertex_count);
+		void DrawIndexed(uint32_t index_count, uint32_t index_offset, uint32_t vertex_offset);
 
-		void SetPipeline(RHI_Pipeline* pipeline);
-
+		// Misc
 		void SetViewport(const RHI_Viewport& viewport);
 		void SetScissorRectangle(const Math::Rectangle& scissor_rectangle);
 		void SetPrimitiveTopology(RHI_PrimitiveTopology_Mode primitive_topology);
 
+		// Input layout
 		void SetInputLayout(const RHI_InputLayout* input_layout);
 		void SetInputLayout(const std::shared_ptr<RHI_InputLayout>& input_layout) { SetInputLayout(input_layout.get()); }
 
+		// Depth-stencil state
 		void SetDepthStencilState(const RHI_DepthStencilState* depth_stencil_state);
 		void SetDepthStencilState(const std::shared_ptr<RHI_DepthStencilState>& depth_stencil_state) { SetDepthStencilState(depth_stencil_state.get()); }
 
+		// Rasterizer state
 		void SetRasterizerState(const RHI_RasterizerState* rasterizer_state);
 		void SetRasterizerState(const std::shared_ptr<RHI_RasterizerState>& rasterizer_state) { SetRasterizerState(rasterizer_state.get()); }
 
+		// Blend state
 		void SetBlendState(const RHI_BlendState* blend_state);
 		void SetBlendState(const std::shared_ptr<RHI_BlendState>& blend_state) { SetBlendState(blend_state.get()); }
 
+		// Vertex buffer
 		void SetBufferVertex(const RHI_VertexBuffer* buffer);
 		void SetBufferVertex(const std::shared_ptr<RHI_VertexBuffer>& buffer) { SetBufferVertex(buffer.get()); }
 
+		// Index buffer
 		void SetBufferIndex(const RHI_IndexBuffer* buffer);
 		void SetBufferIndex(const std::shared_ptr<RHI_IndexBuffer>& buffer) { SetBufferIndex(buffer.get()); }
 
+		// Vertex shader
 		void SetShaderVertex(const RHI_Shader* shader);
 		void SetShaderVertex(const std::shared_ptr<RHI_Shader>& shader) { SetShaderVertex(shader.get()); }
 
+		// Pixel shader
 		void SetShaderPixel(const RHI_Shader* shader);
 		void SetShaderPixel(const std::shared_ptr<RHI_Shader>& shader) { SetShaderPixel(shader.get()); }
 
-		void SetConstantBuffers(unsigned int start_slot, RHI_Buffer_Scope scope, const std::vector<void*>& constant_buffers);
-		void SetConstantBuffer(unsigned int slot, RHI_Buffer_Scope scope, const std::shared_ptr<RHI_ConstantBuffer>& constant_buffer);
-			
-		void SetSamplers(unsigned int start_slot, const std::vector<void*>& samplers);
-		void SetSampler(unsigned int slot, const std::shared_ptr<RHI_Sampler>& sampler);
-		
-		void SetTextures(unsigned int start_slot, const std::vector<void*>& textures);
-		void SetTexture(uint32_t slot, void* texture);
-		void SetTexture(uint32_t slot, const std::shared_ptr<RHI_Texture>& texture);
-		void ClearTextures() { SetTextures(0, m_textures_empty); }
+		// Constant buffer
+		void SetConstantBuffers(uint32_t start_slot, RHI_Buffer_Scope scope, const std::vector<void*>& constant_buffers);
+		void SetConstantBuffer(uint32_t slot, RHI_Buffer_Scope scope, const std::shared_ptr<RHI_ConstantBuffer>& constant_buffer);
 
+		// Sampler
+		void SetSamplers(uint32_t start_slot, const std::vector<void*>& samplers);
+		void SetSampler(uint32_t slot, const std::shared_ptr<RHI_Sampler>& sampler);
+
+		// Texture
+		void SetTextures(const uint32_t start_slot, const void* textures, uint32_t texture_count, bool is_array = true);
+		void SetTexture(const uint32_t slot, RHI_Texture* texture);
+		void SetTexture(const uint32_t slot, const std::shared_ptr<RHI_Texture>& texture)	{ SetTextures(slot, texture ? texture->GetResource_Texture() : nullptr, 1, false); }
+		void ClearTextures()																{ SetTextures(0, m_textures_empty.data(), static_cast<uint32_t>(m_textures_empty.size())); }
+
+		// Render targets
 		void SetRenderTargets(const std::vector<void*>& render_targets, void* depth_stencil = nullptr);
 		void SetRenderTarget(void* render_target, void* depth_stencil = nullptr);
 		void SetRenderTarget(const std::shared_ptr<RHI_Texture>&, void* depth_stencil = nullptr);
-
 		void ClearRenderTarget(void* render_target, const Math::Vector4& color);
 		void ClearRenderTargets(const std::vector<void*>& render_targets, const Math::Vector4& color)
 		{
@@ -219,36 +231,31 @@ namespace Spartan
 				ClearRenderTarget(render_target, color);
 			}
 		}
-		void ClearDepthStencil(void* depth_stencil, unsigned int flags, float depth, unsigned int stencil = 0);
+		void ClearDepthStencil(void* depth_stencil, uint32_t flags, float depth, uint32_t stencil = 0);
 
-		bool Submit();
-		const auto& GetSemaphoreRenderFinished() { return !m_semaphores_render_finished.empty() ? m_semaphores_render_finished[m_current_frame] : nullptr; }
+		bool Submit(bool profile = true);
 
 	private:
 		void Clear();
 
-		RHI_SwapChain* m_swap_chain = nullptr;
-
-		// D3D11
-		RHI_Command& GetCmd();
-		std::vector<RHI_Command> m_commands;
-		unsigned int m_initial_capacity = 2500;
-		unsigned int m_command_count	= 0;
-
-		// Vulkan
-		RHI_Command m_empty_cmd; // for GetCmd()
-		RHI_Pipeline* m_pipeline		= nullptr;
-		void* m_cmd_pool				= nullptr;
-		unsigned int m_current_frame	= 0;
-		bool m_is_recording				= false;
-		bool m_sync_cpu_to_gpu			= false;
-		std::vector<void*> m_cmd_buffers;
-		std::vector<void*> m_semaphores_render_finished;
-		std::vector<void*> m_fences_in_flight;
-
 		// Dependencies
-		std::vector<void*> m_textures_empty	= std::vector<void*>(10);
-		Profiler* m_profiler				= nullptr;
-		std::shared_ptr<RHI_Device> m_rhi_device;		
+		Profiler* m_profiler = nullptr;
+		std::shared_ptr<RHI_Device> m_rhi_device;
+		std::vector<void*> m_textures_empty = std::vector<void*>(10);
+
+		// API
+		RHI_Command& GetCmd();
+		RHI_Command m_empty_cmd; // for GetCmd()
+		std::vector<RHI_Command> m_commands;
+		std::vector<void*> m_cmd_buffers;
+		std::vector<void*> m_semaphores_cmd_list_consumed;
+		std::vector<void*> m_fences_in_flight;
+		uint32_t m_initial_capacity = 6000;
+		uint32_t m_command_count	= 0;	
+		RHI_Pipeline* m_pipeline	= nullptr;
+		void* m_cmd_pool			= nullptr;
+		uint32_t m_buffer_index		= 0;
+		bool m_is_recording			= false;
+		bool m_sync_cpu_to_gpu		= false;
 	};
 }

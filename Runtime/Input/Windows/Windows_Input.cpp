@@ -26,13 +26,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../Logging/Log.h"
 #include "../../Core/Settings.h"
 #include "../../Core/EventSystem.h"
+#include "../../Core/Context.h"
+#include "../../Core/Engine.h"
 //==================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-using namespace Helper;
-//=============================
+//============================
 
 // TODO: DirectInput is ancient and unsupported, also lacks a couple of features. Must replace with simple Windows input.
 
@@ -42,7 +43,7 @@ namespace Spartan
 	IDirectInputDevice8*	g_keyboard;
 	IDirectInputDevice8*	g_mouse;
 	XINPUT_STATE			g_gamepad;
-	unsigned int			g_gamepad_num;
+	uint32_t			    g_gamepad_num;
 	DIMOUSESTATE			g_mouse_state;
 	unsigned char			g_keyboard_state[256];
 
@@ -50,8 +51,8 @@ namespace Spartan
 	{
 		g_gamepad_num				= 0;
 		auto result					= true;
-		const auto window_handle	= static_cast<HWND>(Settings::Get().GetWindowHandle());
-		const auto window_instance	= static_cast<HINSTANCE>(Settings::Get().GetWindowInstance());
+		const auto window_handle	= static_cast<HWND>(context->m_engine->GetWindowHandle());
+		const auto window_instance	= static_cast<HINSTANCE>(context->m_engine->GetWindowInstance());
 
 		if (!window_handle || !window_instance)
 			return;
@@ -169,10 +170,10 @@ namespace Spartan
 		}
 	}
 
-	void Input::Tick()
+	void Input::Tick(float delta_time)
 	{
 		m_keys_previous				= m_keys;
-		const auto window_handle	= static_cast<HWND>(Settings::Get().GetWindowHandle());
+		const auto window_handle	= static_cast<HWND>(m_context->m_engine->GetWindowHandle());
 
 		if(ReadKeyboard())
 		{
@@ -267,7 +268,7 @@ namespace Spartan
 		}
 		else
 		{
-			for (unsigned int i = 0; i <= 82; i++)
+			for (uint32_t i = 0; i <= 82; i++)
 			{
 				m_keys[i] = false;
 			}

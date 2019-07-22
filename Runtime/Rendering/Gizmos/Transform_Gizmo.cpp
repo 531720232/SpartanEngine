@@ -19,19 +19,22 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-//= INCLUDES =========================
+//= INCLUDES ================================
 #include "Transform_Gizmo.h"
 #include "../Model.h"
+#include "../Renderer.h"
 #include "../../RHI/RHI_IndexBuffer.h"
+#include "../../Input/Input.h"
 #include "../../World/World.h"
 #include "../../World/Entity.h"
-#include "../../Input/Input.h"
-//====================================
+#include "../../World/Components/Camera.h"
+#include "../../World/Components/Transform.h"
+//===========================================
 
-//=============================
+//============================
 using namespace std;
 using namespace Spartan::Math;
-//=============================
+//============================
 
 namespace Spartan
 {
@@ -50,7 +53,7 @@ namespace Spartan
 		m_handle_scale.Initialize(TransformHandle_Scale, context);
 	}
 
-	shared_ptr<Entity>& Transform_Gizmo::SetSelectedEntity(const shared_ptr<Entity>& entity)
+	const shared_ptr<Entity>& Transform_Gizmo::SetSelectedEntity(const shared_ptr<Entity>& entity)
 	{
 		// Update picked entity only when it's not being edited
 		if (!m_is_editing && !m_just_finished_editing)
@@ -71,6 +74,13 @@ namespace Spartan
 			m_is_editing = false;
 			return false;
 		}
+
+        // If the selected entity is the actual viewport camera, ignore the input
+        if (m_entity_selected->GetId() == camera->GetTransform()->GetEntity_PtrRaw()->GetId())
+        {
+            m_is_editing = false;
+            return false;
+        }
 
 		// Switch between position, rotation and scale handles, with W, E and R respectively
 		if (m_input->GetKeyDown(W))
@@ -107,7 +117,7 @@ namespace Spartan
 		return true;
 	}
 
-	unsigned int Transform_Gizmo::GetIndexCount()
+	uint32_t Transform_Gizmo::GetIndexCount()
 	{
 		if (m_type == TransformHandle_Position)
 		{

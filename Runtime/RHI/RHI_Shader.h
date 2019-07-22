@@ -21,21 +21,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-//= INCLUDES ==============
+//= INCLUDES ======================
 #include <memory>
 #include <string>
 #include <map>
 #include <vector>
-#include "RHI_Object.h"
 #include "RHI_Definition.h"
-//=========================
+#include "RHI_Vertex.h"
+#include "../Core/Spartan_Object.h"
+//=================================
 
 namespace Spartan
 {
 	// Forward declarations
 	class Context;
 
-	enum Shader_Type
+	enum Shader_Stage
 	{
 		Shader_Vertex,
 		Shader_Pixel,
@@ -45,18 +46,18 @@ namespace Spartan
 	struct Shader_Resource
 	{
 		Shader_Resource() = default;
-		Shader_Resource(const std::string& name, RHI_Descriptor_Type type, uint32_t slot, Shader_Type shader_type)
+		Shader_Resource(const std::string& name, const RHI_Descriptor_Type type, const uint32_t slot, const Shader_Stage shader_stage)
 		{
 			this->name			= name;
 			this->type			= type;
 			this->slot			= slot;
-			this->shader_type	= shader_type;
+			this->shader_stage	= shader_stage;
 		}
 	
 		std::string name;
 		RHI_Descriptor_Type type;
 		uint32_t slot;
-		Shader_Type shader_type;
+		Shader_Stage shader_stage;
 	};
 
 	enum Compilation_State
@@ -78,7 +79,7 @@ namespace Spartan
 		#endif
 	}
 
-	class SPARTAN_CLASS RHI_Shader : public RHI_Object
+	class SPARTAN_CLASS RHI_Shader : public Spartan_Object
 	{
 	public:
 
@@ -86,8 +87,20 @@ namespace Spartan
 		~RHI_Shader();
 
 		// Compilation
-		void Compile(const Shader_Type type, const std::string& shader, const RHI_Vertex_Attribute_Type vertex_attributes = Vertex_Attribute_None);
-		void CompileAsync(Context* context, const Shader_Type type, const std::string& shader, const RHI_Vertex_Attribute_Type vertex_attributes = Vertex_Attribute_None);
+		template<typename T>
+		void Compile(const Shader_Stage type, const std::string& shader);
+		void Compile(const Shader_Stage type, const std::string& shader)
+		{
+			Compile<RHI_Vertex_Undefined>(type, shader);
+		}
+
+        // Asynchronous compilation
+		template<typename T>
+		void CompileAsync(Context* context, const Shader_Stage type, const std::string& shader);
+		void CompileAsync(Context* context, const Shader_Stage type, const std::string& shader)
+		{
+			CompileAsync<RHI_Vertex_Undefined>(context, type, shader); 
+		}
 	
 		// Properties
 		auto GetResource_VertexShader() const										{ return m_vertex_shader; }
@@ -99,16 +112,22 @@ namespace Spartan
 		const auto& GetResources() const											{ return m_resources; }
 		const auto& GetInputLayout() const											{ return m_input_layout; }
 		auto GetCompilationState() const											{ return m_compilation_state; }
+		auto IsCompiled() const														{ return m_compilation_state == Shader_Compiled; }
 		const auto& GetName() const													{ return m_name; }
 		void SetName(const std::string& name)										{ m_name = name; }
 		void AddDefine(const std::string& define, const std::string& value = "1")	{ m_defines[define] = value; }
+        auto& GetDefines() const                                                    { return m_defines; }
+        const auto& GetFilePath() const                                             { return m_file_path; }
+        auto GetShaderStage() const                                                 { return m_shader_stage; }
 
 	protected:
 		std::shared_ptr<RHI_Device> m_rhi_device;
 
 	private:
-		void* _Compile(Shader_Type type, const std::string& shader, RHI_Vertex_Attribute_Type vertex_attributes = Vertex_Attribute_None);
-		void _Reflect(const Shader_Type type, const uint32_t* ptr, uint32_t size);
+		template <typename T>
+		void* _Compile(Shader_Stage type, const std::string& shader);
+		void* _Compile(const Shader_Stage type, const std::string& shader) { return _Compile<RHI_Vertex_Undefined>(type, shader); }
+		void _Reflect(Shader_Stage type, const uint32_t* ptr, uint32_t size);
 
 		std::string m_name;
 		std::string m_file_path;
@@ -116,9 +135,26 @@ namespace Spartan
 		std::vector<Shader_Resource> m_resources;
 		std::shared_ptr<RHI_InputLayout> m_input_layout;
 		Compilation_State m_compilation_state = Shader_Uninitialized;
+        Shader_Stage m_shader_stage;
 
 		// API 
 		void* m_vertex_shader	= nullptr;
 		void* m_pixel_shader	= nullptr;
 	};
+
+	//= Explicit template instantiation =============================================================================
+	template void RHI_Shader::CompileAsync<RHI_Vertex_Undefined>(Context*, const Shader_Stage, const std::string&);
+	template void RHI_Shader::CompileAsync<RHI_Vertex_Pos>(Context*, const Shader_Stage, const std::string&);
+	template void RHI_Shader::CompileAsync<RHI_Vertex_PosTex>(Context*, const Shader_Stage, const std::string&);
+	template void RHI_Shader::CompileAsync<RHI_Vertex_PosCol>(Context*, const Shader_Stage, const std::string&);
+	template void RHI_Shader::CompileAsync<RHI_Vertex_Pos2dTexCol8>(Context*, const Shader_Stage, const std::string&);
+	template void RHI_Shader::CompileAsync<RHI_Vertex_PosTexNorTan>(Context*, const Shader_Stage, const std::string&);
+
+	template void* RHI_Shader::_Compile<RHI_Vertex_Undefined>(Shader_Stage, const std::string&);
+	template void* RHI_Shader::_Compile<RHI_Vertex_Pos>(Shader_Stage, const std::string&);
+	template void* RHI_Shader::_Compile<RHI_Vertex_PosTex>(Shader_Stage, const std::string&);
+	template void* RHI_Shader::_Compile<RHI_Vertex_PosCol>(Shader_Stage, const std::string&);
+	template void* RHI_Shader::_Compile<RHI_Vertex_Pos2dTexCol8>(Shader_Stage, const std::string&);
+	template void* RHI_Shader::_Compile<RHI_Vertex_PosTexNorTan>(Shader_Stage, const std::string&);
+	//===============================================================================================================
 }

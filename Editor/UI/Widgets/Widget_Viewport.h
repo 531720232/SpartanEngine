@@ -21,18 +21,29 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-//= INCLUDES ======
+//= INCLUDES ================
 #include "Widget.h"
-//=================
+#include "RHI/RHI_Viewport.h"
+//===========================
+
+//= FORWARD DECLARATIONS =
+namespace Spartan
+{
+    class Renderer;
+    class World;
+}
+//========================
 
 class Widget_Viewport : public Widget
 {
 public:
 	Widget_Viewport(Spartan::Context* context);
-	bool Begin() override;
-	void Tick(float delta_time) override;
+	void Tick() override;
 
 private:
-	void ShowFrame(float delta_time);
-	float m_timeSinceLastResChange;
+	float m_timeSinceLastResChange  = 0.0f;
+    float m_window_padding          = 4.0f;
+    Spartan::Renderer* m_renderer   = nullptr;
+    Spartan::World* m_world         = nullptr;  
+    Spartan::RHI_Viewport m_viewport;
 };

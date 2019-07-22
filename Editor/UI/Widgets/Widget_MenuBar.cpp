@@ -44,12 +44,12 @@ namespace _Widget_MenuBar
 
 Widget_MenuBar::Widget_MenuBar(Context* context) : Widget(context)
 {
-	m_isWindow				= false;
+	m_is_window				= false;
 	m_fileDialog			= make_unique<FileDialog>(m_context, true, FileDialog_Type_FileSelection, FileDialog_Op_Open, FileDialog_Filter_Scene);
 	_Widget_MenuBar::world	= m_context->GetSubsystem<World>().get();
 }
 
-void Widget_MenuBar::Tick(float deltaTime)
+void Widget_MenuBar::Tick()
 {
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -102,15 +102,20 @@ void Widget_MenuBar::Tick(float deltaTime)
 		ImGui::EndMainMenuBar();
 	}
 
-	if (_Widget_MenuBar::imgui_metrics)			{ ImGui::ShowMetricsWindow(); }
-	if (_Widget_MenuBar::imgui_style)			{ ImGui::Begin("Style Editor", nullptr, ImGuiWindowFlags_NoDocking); ImGui::ShowStyleEditor(); ImGui::End(); }
-	if (_Widget_MenuBar::imgui_demo)			{ ImGui::ShowDemoWindow(&_Widget_MenuBar::imgui_demo); }
-	if (_Widget_MenuBar::g_fileDialogVisible)	{ ImGui::SetNextWindowFocus(); ShowFileDialog(); }
-	if (_Widget_MenuBar::g_showAboutWindow)		{ ImGui::SetNextWindowFocus(); ShowAboutWindow(); }
+	if (_Widget_MenuBar::imgui_metrics)	{ ImGui::ShowMetricsWindow(); }
+	if (_Widget_MenuBar::imgui_style)	{ ImGui::Begin("Style Editor", nullptr, ImGuiWindowFlags_NoDocking); ImGui::ShowStyleEditor(); ImGui::End(); }
+	if (_Widget_MenuBar::imgui_demo)	{ ImGui::ShowDemoWindow(&_Widget_MenuBar::imgui_demo); }
+    ShowFileDialog();
+    ShowAboutWindow();
 }
 
 void Widget_MenuBar::ShowFileDialog()
 {
+    if (_Widget_MenuBar::g_fileDialogVisible)
+    {
+        ImGui::SetNextWindowFocus();
+    }
+
 	if (m_fileDialog->Show(&_Widget_MenuBar::g_fileDialogVisible, nullptr, &_Widget_MenuBar::g_fileDialogSelection))
 	{
 		// LOAD
@@ -138,13 +143,17 @@ void Widget_MenuBar::ShowFileDialog()
 
 void Widget_MenuBar::ShowAboutWindow()
 {
+    if (!_Widget_MenuBar::g_showAboutWindow)
+        return;
+
+    ImGui::SetNextWindowFocus();
 	ImGui::Begin("About", &_Widget_MenuBar::g_showAboutWindow, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoDocking);
 
-	ImGui::Text("Spartan %s", ENGINE_VERSION);
+	ImGui::Text("Spartan %s", engine_version);
 	ImGui::Text("Author: Panos Karabelas");
 	ImGui::SameLine(600); ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 5);  if (ImGui::Button("GitHub"))
 	{
-		FileSystem::OpenDirectoryWindow("https://github.com/PanosK92/Directus3D");
+		FileSystem::OpenDirectoryWindow("https://github.com/PanosK92/SpartanEngine");
 	}	
 
 	ImGui::Separator();
@@ -177,15 +186,25 @@ void Widget_MenuBar::ShowAboutWindow()
 		ImGui::SameLine(250); ImGui::PushID(url);  if (ImGui::Button("URL")) { FileSystem::OpenDirectoryWindow(url); } ImGui::PopID();
 	};
 
-	library("Graphics API",	Settings::Get().m_versionGraphicsAPI,	"https://www.khronos.org/vulkan/");
-	library("AngelScript",	Settings::Get().m_versionAngelScript,	"https://www.angelcode.com/angelscript/");
-	library("Assimp",		Settings::Get().m_versionAssimp,		"https://github.com/assimp/assimp");
-	library("Bullet",		Settings::Get().m_versionBullet,		"https://github.com/bulletphysics/bullet3");
-	library("FMOD",			Settings::Get().m_versionFMOD,			"https://www.fmod.com/");
-	library("FreeImage",	Settings::Get().m_versionFreeImage,		"https://sourceforge.net/projects/freeimage/files/Source%20Distribution/");
-	library("FreeType",		Settings::Get().m_versionFreeType,		"https://www.freetype.org/");
-	library("ImGui",		Settings::Get().m_versionImGui,			"https://github.com/ocornut/imgui");
-	library("PugiXML",		Settings::Get().m_versionPugiXML,		"https://github.com/zeux/pugixml");
+#if defined(API_GRAPHICS_D3D11)
+    const char* api_name = "DirectX";
+    const char* api_link = "https://www.microsoft.com/en-us/download/details.aspx?id=17431";
+#elif defined(API_GRAPHICS_VULKAN)
+    const char* api_name = "Vulkan";
+    const char* api_link = "https://www.khronos.org/vulkan/";
+#endif
+
+    auto& settings = m_context->GetSubsystem<Settings>();
+
+	library(api_name,	    settings->m_versionGraphicsAPI,	api_link);
+	library("AngelScript",	settings->m_versionAngelScript,	"https://www.angelcode.com/angelscript/");
+	library("Assimp",		settings->m_versionAssimp,		"https://github.com/assimp/assimp");
+	library("Bullet",		settings->m_versionBullet,		"https://github.com/bulletphysics/bullet3");
+	library("FMOD",			settings->m_versionFMOD,		"https://www.fmod.com/");
+	library("FreeImage",	settings->m_versionFreeImage,	"https://sourceforge.net/projects/freeimage/files/Source%20Distribution/");
+	library("FreeType",		settings->m_versionFreeType,	"https://www.freetype.org/");
+	library("ImGui",		settings->m_versionImGui,		"https://github.com/ocornut/imgui");
+	library("PugiXML",		settings->m_versionPugiXML,		"https://github.com/zeux/pugixml");
 
 	ImGui::End();
 }

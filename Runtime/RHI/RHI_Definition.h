@@ -29,6 +29,8 @@ namespace Spartan
 	struct RHI_Context;
 	class RHI_Device;
 	class RHI_CommandList;
+	class RHI_PipelineState;
+	class RHI_PipelineCache;
 	class RHI_Pipeline;
 	class RHI_SwapChain;
 	class RHI_RasterizerState;
@@ -44,10 +46,11 @@ namespace Spartan
 	class RHI_Texture2D;
 	class RHI_TextureCube;
 	class RHI_Shader;
-	struct RHI_Vertex_PosUvNorTan;
-	struct RHI_Vertex_PosUvNor;
-	struct RHI_Vertex_PosUv;
+	struct RHI_Vertex_Undefined;
+	struct RHI_Vertex_PosTex;
 	struct RHI_Vertex_PosCol;
+	struct RHI_Vertex_PosUvCol;
+	struct RHI_Vertex_PosTexNorTan;
 
 	enum RHI_Present_Mode
 	{
@@ -100,21 +103,6 @@ namespace Spartan
 		PrimitiveTopology_NotAssigned
 	};
 
-	enum RHI_Vertex_Attribute_Type : unsigned long
-	{
-		Vertex_Attribute_None			= 0,
-		Vertex_Attribute_Position2d		= 1UL << 0,
-		Vertex_Attribute_Position3d		= 1UL << 1,
-		Vertex_Attribute_Color8			= 1UL << 2,
-		Vertex_Attribute_Color32		= 1UL << 3,
-		Vertex_Attribute_Texture		= 1UL << 4,
-		Vertex_Attribute_NormalTangent	= 1UL << 5
-	};
-	#define Vertex_Attributes_PositionColor					static_cast<RHI_Vertex_Attribute_Type>(Vertex_Attribute_Position3d	| Vertex_Attribute_Color32)
-	#define Vertex_Attributes_PositionTexture				static_cast<RHI_Vertex_Attribute_Type>(Vertex_Attribute_Position3d	| Vertex_Attribute_Texture)
-	#define Vertex_Attributes_PositionTextureNormalTangent	static_cast<RHI_Vertex_Attribute_Type>(Vertex_Attribute_Position3d	| Vertex_Attribute_Texture | Vertex_Attribute_NormalTangent)
-	#define Vertex_Attributes_Position2dTextureColor8		static_cast<RHI_Vertex_Attribute_Type>(Vertex_Attribute_Position2d	| Vertex_Attribute_Texture | Vertex_Attribute_Color8)
-
 	enum RHI_Cull_Mode
 	{
 		Cull_None,
@@ -128,15 +116,16 @@ namespace Spartan
 		Fill_Wireframe
 	};
 
-	enum RHI_Texture_Filter
+	enum RHI_Filter
 	{
-		Texture_Filter_Comparison_Point,
-		Texture_Filter_Comparison_Bilinear,
-		Texture_Filter_Comparison_Trilinear,
-		Texture_Filter_Point,
-		Texture_Filter_Bilinear,
-		Texture_Filter_Trilinear,
-		Texture_Filter_Anisotropic
+		Filter_Nearest,
+		Filter_Linear,
+	};
+
+	enum RHI_Sampler_Mipmap_Mode
+	{
+		Sampler_Mipmap_Nearest,
+		Sampler_Mipmap_Linear,
 	};
 
 	enum RHI_Sampler_Address_Mode

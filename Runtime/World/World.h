@@ -50,10 +50,10 @@ namespace Spartan
 		World(Context* context);
 		~World();
 
-		//= ISubsystem ============
+		//= ISubsystem ======================
 		bool Initialize() override;
-		void Tick() override;
-		//=========================
+		void Tick(float delta_time) override;
+		//===================================
 		
 		void Unload();
 		bool SaveToFile(const std::string& filePath);
@@ -67,9 +67,9 @@ namespace Spartan
 		void EntityRemove(const std::shared_ptr<Entity>& entity);	
 		std::vector<std::shared_ptr<Entity>> EntityGetRoots();
 		const std::shared_ptr<Entity>& EntityGetByName(const std::string& name);
-		const std::shared_ptr<Entity>& EntityGetById(unsigned int id);
+		const std::shared_ptr<Entity>& EntityGetById(uint32_t id);
 		const auto& EntityGetAll()	{ return m_entities_primary; }
-		auto EntityGetCount()		{ return static_cast<unsigned int>(m_entities_primary.size()); }
+		auto EntityGetCount()		{ return static_cast<uint32_t>(m_entities_primary.size()); }
 		//==========================================================================================
 
 	private:

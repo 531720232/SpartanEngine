@@ -54,7 +54,7 @@ namespace Spartan
 
 		REGISTER_ATTRIBUTE_VALUE_VALUE(m_size, Vector3);
 		REGISTER_ATTRIBUTE_VALUE_VALUE(m_center, Vector3);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_vertexLimit, unsigned int);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_vertexLimit, uint32_t);
 		REGISTER_ATTRIBUTE_VALUE_VALUE(m_optimize, bool);
 		REGISTER_ATTRIBUTE_VALUE_SET(m_shapeType, SetShapeType, ColliderShape);
 	}
@@ -70,7 +70,7 @@ namespace Spartan
 		if (auto renderable = GetEntity_PtrRaw()->GetRenderable_PtrRaw())
 		{
 			m_center	= Vector3::Zero;
-			m_size		= renderable->GeometryAabb().GetSize();
+			m_size		= renderable->GetAabb().GetSize();
 		}
 
 		Shape_Update();
@@ -81,21 +81,16 @@ namespace Spartan
 		Shape_Release();
 	}
 
-	void Collider::OnTick()
-	{
-
-	}
-
 	void Collider::Serialize(FileStream* stream)
 	{
-		stream->Write(unsigned int(m_shapeType));
+		stream->Write(uint32_t(m_shapeType));
 		stream->Write(m_size);
 		stream->Write(m_center);
 	}
 
 	void Collider::Deserialize(FileStream* stream)
 	{
-		m_shapeType = ColliderShape(stream->ReadAs<unsigned int>());
+		m_shapeType = ColliderShape(stream->ReadAs<uint32_t>());
 		stream->Read(&m_size);
 		stream->Read(&m_center);
 
@@ -195,8 +190,8 @@ namespace Spartan
 			}
 
 			// Get geometry
-			vector<unsigned int> indices;
-			vector<RHI_Vertex_PosUvNorTan> vertices;
+			vector<uint32_t> indices;
+			vector<RHI_Vertex_PosTexNorTan> vertices;
 			renderable->GeometryGet(&indices, &vertices);
 
 			if (vertices.empty())
@@ -209,7 +204,7 @@ namespace Spartan
 			m_shape = new btConvexHullShape(
 				(btScalar*)&vertices[0],					// points
 				renderable->GeometryVertexCount(),			// point count
-				(unsigned int)sizeof(RHI_Vertex_PosUvNorTan));	// stride
+				(uint32_t)sizeof(RHI_Vertex_PosTexNorTan));	// stride
 
 			// Scaling has to be done before (potential) optimization
 			m_shape->setLocalScaling(ToBtVector3(worldScale));

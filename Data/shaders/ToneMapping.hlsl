@@ -1,6 +1,32 @@
-float3 ToneMapReinhard(float3 color)
+/*
+Copyright(c) 2016-2019 Panos Karabelas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+float3 Reinhard(float3 hdr, float k = 1.0f)
 {
-	return color / (1 + color);
+	return hdr / (hdr + k);
+}
+
+float3 ReinhardInverse(float3 sdr, float k = 1.0)
+{
+	return k * sdr / (k - sdr);
 }
 
 float3 Uncharted2(float3 x)
@@ -60,8 +86,10 @@ float3 ACESFitted(float3 color)
     return color;
 }
 
-float3 ToneMap(float3 color)
+float3 ToneMap(float3 color, float exposure = 1.0f)
 {
+	color *= exp(exposure);
+	
 	[branch]
     if (g_toneMapping == 0) // OFF
     {
@@ -73,7 +101,7 @@ float3 ToneMap(float3 color)
 	}
 	else if (g_toneMapping == 2) // REINHARD
 	{
-		color = ToneMapReinhard(color);
+		color = Reinhard(color);
 	}
 	else if (g_toneMapping == 3) // UNCHARTED 2
 	{

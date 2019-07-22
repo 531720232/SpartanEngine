@@ -73,7 +73,7 @@ namespace Spartan
 		return true;
 	}
 
-	void World::Tick()
+	void World::Tick(float delta_time)
 	{	
 		if (m_state == Request_Loading)
 		{
@@ -84,14 +84,14 @@ namespace Spartan
 		if (m_state != Ticking)
 			return;
 
-		TIME_BLOCK_START_CPU(m_profiler);
-		
+        TIME_BLOCK_START_CPU(m_profiler);
+
 		// Tick entities
 		{
 			// Detect game toggling
-			const auto started	= Engine::EngineMode_IsSet(Engine_Game) && m_wasInEditorMode;
-			const auto stopped	= !Engine::EngineMode_IsSet(Engine_Game) && !m_wasInEditorMode;
-			m_wasInEditorMode	= !Engine::EngineMode_IsSet(Engine_Game);
+			const auto started	= m_context->m_engine->EngineMode_IsSet(Engine_Game) && m_wasInEditorMode;
+			const auto stopped	= !m_context->m_engine->EngineMode_IsSet(Engine_Game) && !m_wasInEditorMode;
+			m_wasInEditorMode	= !m_context->m_engine->EngineMode_IsSet(Engine_Game);
 
 			// Start
 			if (started)
@@ -112,11 +112,11 @@ namespace Spartan
 			// Tick
 			for (const auto& entity : m_entities_primary)
 			{
-				entity->Tick();
+				entity->Tick(delta_time);
 			}
 		}
 
-		TIME_BLOCK_END(m_profiler);
+        TIME_BLOCK_END(m_profiler);
 
 		if (m_isDirty)
 		{
@@ -168,7 +168,7 @@ namespace Spartan
 
 		// Only save root entities as they will also save their descendants
 		auto root_actors = EntityGetRoots();
-		const auto root_entity_count = static_cast<unsigned int>(root_actors.size());
+		const auto root_entity_count = static_cast<uint32_t>(root_actors.size());
 
 		ProgressReport::Get().SetJobCount(g_progress_world, root_entity_count);
 
@@ -207,7 +207,7 @@ namespace Spartan
 		}
 
 		// Thread safety: Wait for scene and the renderer to stop the entities (could do double buffering in the future)
-		while (m_state != Loading || Renderer::IsRendering()) { m_state = Request_Loading; this_thread::sleep_for(chrono::milliseconds(16)); }
+		while (m_state != Loading || m_context->GetSubsystem<Renderer>()->IsRendering()) { m_state = Request_Loading; this_thread::sleep_for(chrono::milliseconds(16)); }
 
 		// Start progress report and timing
 		ProgressReport::Get().Reset(g_progress_world);
@@ -229,19 +229,19 @@ namespace Spartan
 		FIRE_EVENT(Event_World_Load);
 
 		// Load root entity count
-		auto root_entity_count = file->ReadAs<unsigned int>();
+		auto root_entity_count = file->ReadAs<uint32_t>();
 
 		ProgressReport::Get().SetJobCount(g_progress_world, root_entity_count);
 
 		// Load root entity IDs
-		for (unsigned int i = 0; i < root_entity_count; i++)
+		for (uint32_t i = 0; i < root_entity_count; i++)
 		{
 			auto& entity = EntityCreate();
-			entity->SetId(file->ReadAs<unsigned int>());
+			entity->SetId(file->ReadAs<uint32_t>());
 		}
 
 		// Serialize root entities
-		for (unsigned int i = 0; i < root_entity_count; i++)
+		for (uint32_t i = 0; i < root_entity_count; i++)
 		{
 			m_entities_primary[i]->Deserialize(file.get(), nullptr);
 			ProgressReport::Get().IncrementJobsDone(g_progress_world);
@@ -341,7 +341,7 @@ namespace Spartan
 		return m_entity_empty;
 	}
 
-	const shared_ptr<Entity>& World::EntityGetById(const unsigned int id)
+	const shared_ptr<Entity>& World::EntityGetById(const uint32_t id)
 	{
 		for (const auto& entity : m_entities_primary)
 		{
@@ -369,8 +369,8 @@ namespace Spartan
 		entity->SetName("Camera");
 		entity->AddComponent<Camera>();
 		entity->AddComponent<AudioListener>();
-		entity->AddComponent<Script>()->SetScript(dir_scripts + "MouseLook.as");
-		entity->AddComponent<Script>()->SetScript(dir_scripts + "FirstPersonController.as");
+		//entity->AddComponent<Script>()->SetScript(dir_scripts + "MouseLook.as");
+		//entity->AddComponent<Script>()->SetScript(dir_scripts + "FirstPersonController.as");
 		entity->GetTransform_PtrRaw()->SetPositionLocal(Vector3(0.0f, 1.0f, -5.0f));
 
 		return entity;
@@ -380,7 +380,7 @@ namespace Spartan
 	{
 		auto& light = EntityCreate();
 		light->SetName("DirectionalLight");
-		light->GetTransform_PtrRaw()->SetRotationLocal(Quaternion::FromEulerAngles(30.0f, 0.0, 0.0f));
+		light->GetTransform_PtrRaw()->SetRotationLocal(Quaternion::FromEulerAngles(30.0f, 30.0, 0.0f));
 		light->GetTransform_PtrRaw()->SetPosition(Vector3(0.0f, 10.0f, 0.0f));
 
 		auto light_comp = light->AddComponent<Light>().get();

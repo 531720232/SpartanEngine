@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../FileSystem/FileSystem.h"
 #include "../Core/EventSystem.h"
 #include "../Core/Settings.h"
+#include "../Core/Context.h"
 //===========================================
 
 namespace Spartan
@@ -56,7 +57,7 @@ namespace Spartan
 		string major	= to_string(ANGELSCRIPT_VERSION).erase(1, 4);
 		string minor	= to_string(ANGELSCRIPT_VERSION).erase(0, 1).erase(2, 2);
 		string rev		= to_string(ANGELSCRIPT_VERSION).erase(0, 3);
-		Settings::Get().m_versionAngelScript = major + "." + minor + "." + rev;
+        m_context->GetSubsystem<Settings>()->m_versionAngelScript = major + "." + minor + "." + rev;
 
 		// Subscribe to events
 		SUBSCRIBE_TO_EVENT(Event_World_Unload, EVENT_HANDLER(Clear));
@@ -126,12 +127,16 @@ namespace Spartan
 	/*------------------------------------------------------------------------------
 								[CALLS]
 	------------------------------------------------------------------------------*/
-	bool Scripting::ExecuteCall(asIScriptFunction* scriptFunc, asIScriptObject* obj)
+	bool Scripting::ExecuteCall(asIScriptFunction* scriptFunc, asIScriptObject* obj, float delta_time /*=-1.0f*/)
 	{
 		asIScriptContext* ctx = RequestContext();
 
 		ctx->Prepare(scriptFunc); // prepare the context for calling the method
+
+        // Instance data and function parameters
 		ctx->SetObject(obj); // set the object pointer
+        if (delta_time != -1.0f) ctx->SetArgFloat(0, delta_time);
+
 		int r = ctx->Execute(); // execute the call
 
 		// output any exceptions

@@ -22,61 +22,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma once
 
 //= INCLUDES ===============
-#include "EngineDefs.h"
+#include "ISubsystem.h"
 #include "../Math/Vector2.h"
-#include "../Math/Vector4.h"
 //==========================
 
 namespace Spartan
 {
-	enum FPS_Policy
-	{
-		FPS_Unlocked,
-		FPS_Locked,
-		FPS_MonitorMatch
-	};
+    class Context;
 
-	class SPARTAN_CLASS Settings
+	class SPARTAN_CLASS Settings : public ISubsystem
 	{
 	public:
-		static Settings& Get()
-		{
-			static Settings instance;
-			return instance;
-		}
+		Settings(Context* context);
+        ~Settings();
 
-		Settings();
+        //= Subsystem =============
+        bool Initialize() override;
+        //=========================
 
-		void Initialize();
-
-		//= WINDOW ============================================================================================================
-		void SetHandles(void* draw_handle, void* window_handle, void* window_instance, float window_width, float window_height)
-		{
-			m_draw_handle		= draw_handle;
-			m_window_handle		= window_handle;
-			m_windowInstance	= window_instance;
-			m_window_size.x		= window_width;
-			m_window_size.y		= window_height;
-		}
-		auto GetWindowHandle() const	{ return m_window_handle; }
-		auto GetWindowInstance() const	{ return m_windowInstance; }
-		//=====================================================================================================================
-
-		//= FPS ============================================
-		void SetFpsLimit(float fps);
-		auto GetFpsLimit() const	{ return m_fps_limit; }
-		auto GetFpsTarget() const	{ return m_fps_target; }
-		auto GetFpsPolicy()			{ return m_fps_policy; }
-		//==================================================
-
-		//= MISC ==============================================================
-		auto GetIsFullScreen() const		{ return m_is_fullscreen; }
-		auto GetIsMouseVisible() const		{ return m_is_mouse_visible; }
-		auto GetShadowResolution() const	{ return m_shadow_map_resolution; }
-		auto GetAnisotropy() const			{ return m_anisotropy; }
-		auto GetMaxThreadCount() const		{ return m_max_thread_count; }	
-		auto GetReverseZ() const			{ return m_reverse_z; }
-		//=====================================================================
+		//= MISC =====================================================
+		auto GetIsFullScreen() const	{ return m_is_fullscreen; }
+		auto GetIsMouseVisible() const	{ return m_is_mouse_visible; }
+		//============================================================
 
 		// Third party lib versions
 		std::string m_versionAngelScript;
@@ -89,19 +56,20 @@ namespace Spartan
 		std::string m_versionPugiXML = "1.90";
 		std::string m_versionGraphicsAPI;
 
-	private:
-		void* m_draw_handle						= nullptr;
-		void* m_window_handle					= nullptr;
-		void* m_windowInstance					= nullptr;
-		Math::Vector2 m_window_size				= Math::Vector2::Zero;
-		bool m_is_fullscreen					= false;
-		bool m_is_mouse_visible					= true;
-		unsigned int m_shadow_map_resolution	= 4096;
-		unsigned int m_anisotropy				= 16;
-		unsigned int m_max_thread_count			= 0;
-		float m_fps_limit						= -1.0f;
-		float m_fps_target						= 165.0f;
-		FPS_Policy m_fps_policy					= FPS_MonitorMatch;
-		bool m_reverse_z						= true;
+    private:
+        void Save() const;
+		void Load();
+
+        void Reflect();
+        void Map();
+
+		bool m_is_fullscreen				= false;
+		bool m_is_mouse_visible				= true;
+		uint32_t m_shadow_map_resolution	= 0;
+        Math::Vector2 m_resolution          = Math::Vector2::Zero;
+		uint32_t m_anisotropy				= 0;
+		uint32_t m_max_thread_count			= 0;
+        double m_fps_limit                  = 0;
+        Context* m_context                  = nullptr;
 	};
 }

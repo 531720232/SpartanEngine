@@ -39,26 +39,20 @@ namespace Spartan
 {
 	Material::Material(Context* context) : IResource(context, Resource_Material)
 	{
-		// Material
-		m_cull_mode				= Cull_Back;
-		m_shading_mode			= Shading_PBR;
-		m_color_albedo			= Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-		m_roughness_multiplier	= 1.0f;
-		m_metallic_multiplier	= 0.0f;
-		m_normal_multiplier		= 0.0f;
-		m_height_multiplier		= 0.0f;
-		m_uv_tiling				= Vector2(1.0f, 1.0f);
-		m_uv_offset				= Vector2(0.0f, 0.0f);
-		m_is_editable			= true;
-		m_rhi_device			= context->GetSubsystem<Renderer>()->GetRhiDevice();
+		m_rhi_device = context->GetSubsystem<Renderer>()->GetRhiDevice();
 
+		// Initialize properties
+		SetMultiplier(TextureType_Roughness, 1.0f);
+		SetMultiplier(TextureType_Metallic, 0.0f);
+		SetMultiplier(TextureType_Normal, 0.0f);
+		SetMultiplier(TextureType_Height, 0.0f);
 		AcquireShader();
+		UpdateResourceArray();
 	}
 
 	Material::~Material()
 	{
-		m_texture_slots.clear();
-		m_texture_slots.shrink_to_fit();
+		m_textures.clear();
 	}
 
 	//= IResource ==============================================
@@ -73,13 +67,13 @@ namespace Spartan
 
 		SetResourceName(xml->GetAttributeAs<string>("Material",	"Name"));
 		SetResourceFilePath(xml->GetAttributeAs<string>("Material",	"Path"));
-		xml->GetAttribute("Material", "Roughness_Multiplier",	&m_roughness_multiplier);
-		xml->GetAttribute("Material", "Metallic_Multiplier",	&m_metallic_multiplier);
-		xml->GetAttribute("Material", "Normal_Multiplier",		&m_normal_multiplier);
-		xml->GetAttribute("Material", "Height_Multiplier",		&m_height_multiplier);
+		xml->GetAttribute("Material", "Roughness_Multiplier",	&GetMultiplier(TextureType_Roughness));
+		xml->GetAttribute("Material", "Metallic_Multiplier",	&GetMultiplier(TextureType_Metallic));
+		xml->GetAttribute("Material", "Normal_Multiplier",		&GetMultiplier(TextureType_Normal));
+		xml->GetAttribute("Material", "Height_Multiplier",		&GetMultiplier(TextureType_Height));
 		xml->GetAttribute("Material", "IsEditable",				&m_is_editable);
-		xml->GetAttribute("Material", "Cull_Mode",				(unsigned int*)&m_cull_mode);
-		xml->GetAttribute("Material", "Shading_Mode",			(unsigned int*)&m_shading_mode);
+		xml->GetAttribute("Material", "Cull_Mode",				reinterpret_cast<uint32_t*>(&m_cull_mode));
+		xml->GetAttribute("Material", "Shading_Mode",			reinterpret_cast<uint32_t*>(&m_shading_mode));
 		xml->GetAttribute("Material", "Color",					&m_color_albedo);
 		xml->GetAttribute("Material", "UV_Tiling",				&m_uv_tiling);
 		xml->GetAttribute("Material", "UV_Offset",				&m_uv_offset);
@@ -88,7 +82,7 @@ namespace Spartan
 		for (auto i = 0; i < texture_count; i++)
 		{
 			auto node_name		= "Texture_" + to_string(i);
-			const auto tex_type	= static_cast<TextureType>(xml->GetAttributeAs<unsigned int>(node_name, "Texture_Type"));
+			const auto tex_type	= static_cast<TextureType>(xml->GetAttributeAs<uint32_t>(node_name, "Texture_Type"));
 			auto tex_name		= xml->GetAttributeAs<string>(node_name, "Texture_Name");
 			auto tex_path		= xml->GetAttributeAs<string>(node_name, "Texture_Path");
 
@@ -122,147 +116,90 @@ namespace Spartan
 		xml->AddNode("Material");
 		xml->AddAttribute("Material", "Name",					GetResourceName());
 		xml->AddAttribute("Material", "Path",					GetResourceFilePath());
-		xml->AddAttribute("Material", "Cull_Mode",				unsigned int(m_cull_mode));	
-		xml->AddAttribute("Material", "Shading_Mode",			unsigned int(m_shading_mode));
+		xml->AddAttribute("Material", "Cull_Mode",				uint32_t(m_cull_mode));	
+		xml->AddAttribute("Material", "Shading_Mode",			uint32_t(m_shading_mode));
 		xml->AddAttribute("Material", "Color",					m_color_albedo);
-		xml->AddAttribute("Material", "Roughness_Multiplier",	m_roughness_multiplier);
-		xml->AddAttribute("Material", "Metallic_Multiplier",	m_metallic_multiplier);
-		xml->AddAttribute("Material", "Normal_Multiplier",		m_normal_multiplier);
-		xml->AddAttribute("Material", "Height_Multiplier",		m_height_multiplier);
+		xml->AddAttribute("Material", "Roughness_Multiplier",	GetMultiplier(TextureType_Roughness));
+		xml->AddAttribute("Material", "Metallic_Multiplier",	GetMultiplier(TextureType_Metallic));
+		xml->AddAttribute("Material", "Normal_Multiplier",		GetMultiplier(TextureType_Normal));
+		xml->AddAttribute("Material", "Height_Multiplier",		GetMultiplier(TextureType_Height));
 		xml->AddAttribute("Material", "UV_Tiling",				m_uv_tiling);
 		xml->AddAttribute("Material", "UV_Offset",				m_uv_offset);
 		xml->AddAttribute("Material", "IsEditable",				m_is_editable);
 
 		xml->AddChildNode("Material", "Textures");
-		xml->AddAttribute("Textures", "Count", static_cast<unsigned int>(m_texture_slots.size()));
+		xml->AddAttribute("Textures", "Count", static_cast<uint32_t>(m_textures.size()));
 		auto i = 0;
-		for (const auto& texture_slot : m_texture_slots)
+		for (const auto& texture : m_textures)
 		{
 			auto tex_node = "Texture_" + to_string(i);
 			xml->AddChildNode("Textures", tex_node);
-			xml->AddAttribute(tex_node, "Texture_Type", static_cast<unsigned int>(texture_slot.type));
-			xml->AddAttribute(tex_node, "Texture_Name", texture_slot.ptr ? texture_slot.ptr->GetResourceName() : NOT_ASSIGNED);
-			xml->AddAttribute(tex_node, "Texture_Path", texture_slot.ptr ? texture_slot.ptr->GetResourceFilePath() : NOT_ASSIGNED);
+			xml->AddAttribute(tex_node, "Texture_Type", static_cast<uint32_t>(texture.first));
+			xml->AddAttribute(tex_node, "Texture_Name", texture.second ? texture.second->GetResourceName() : NOT_ASSIGNED);
+			xml->AddAttribute(tex_node, "Texture_Path", texture.second ? texture.second->GetResourceFilePath() : NOT_ASSIGNED);
 			i++;
 		}
 
 		return xml->Save(GetResourceFilePath());
 	}
 
-	const TextureSlot& Material::GetTextureSlotByType(const TextureType type)
-	{
-		for (const auto& texture_slot : m_texture_slots)
-		{
-			if (texture_slot.type == type)
-				return texture_slot;
-		}
-
-		return m_empty_texture_slot;
-	}
-
-	void* Material::GetTextureShaderResourceByType(TextureType type)
-	{
-		for (const auto& texture_slot : m_texture_slots)
-		{
-			if (texture_slot.type == type)
-				return texture_slot.ptr ? texture_slot.ptr->GetResource_Texture() : nullptr;
-		}
-
-		return nullptr;
-	}
-
-	void Material::SetTextureSlot(TextureType type, const shared_ptr<RHI_Texture>& texture)
+	void Material::SetTextureSlot(const TextureType type, const shared_ptr<RHI_Texture>& texture)
 	{
 		if (texture)
 		{
-			// Some models (or Assimp) pass a normal map as a height map
-			// and others pass a height map as a normal map, we try to fix that.
-			type =
-				(type == TextureType_Normal && texture->GetGrayscale()) ? TextureType_Height :
-				(type == TextureType_Height && !texture->GetGrayscale()) ? TextureType_Normal : type;
-
-			// Assign - As a replacement (if there is a previous one)
-			auto replaced = false;
-			for (auto& texture_slot : m_texture_slots)
-			{
-				if (texture_slot.type == type)
-				{
-					texture_slot.ptr = texture;
-					replaced = true;
-					break;
-				}
-			}
-			// Assign - Add a new one (in case it's the first time the slot is assigned)
-			if (!replaced)
-			{
-				m_texture_slots.emplace_back(type, texture);
-			}
+			m_textures[type] = texture;		
 		}
 		else
 		{
-			for (auto it = m_texture_slots.begin(); it != m_texture_slots.end();)
-			{
-				if ((*it).type == type)
-				{
-					it = m_texture_slots.erase(it);
-				}
-				else
-				{
-					++it;
-				}
-			}
-
+			m_textures.erase(type);
 		}
 
-		TextureBasedMultiplierAdjustment();
+		SetMultiplier(type, 1.0f);
 		AcquireShader();
+		UpdateResourceArray();
 	}
 
-	void Material::SetTextureSlot(TextureType type, const shared_ptr<RHI_Texture2D>& texture)
+	void Material::SetTextureSlot(const TextureType type, const std::shared_ptr<RHI_Texture2D>& texture)
 	{
 		SetTextureSlot(type, static_pointer_cast<RHI_Texture>(texture));
 	}
 
-	void Material::SetTextureSlot(TextureType type, const shared_ptr<RHI_TextureCube>& texture)
+	void Material::SetTextureSlot(const TextureType type, const std::shared_ptr<RHI_TextureCube>& texture)
 	{
 		SetTextureSlot(type, static_pointer_cast<RHI_Texture>(texture));
-	}
-
-	bool Material::HasTexture(const TextureType type)
-	{
-		const auto texture_slot = GetTextureSlotByType(type);
-		return texture_slot.ptr != nullptr;
 	}
 
 	bool Material::HasTexture(const string& path)
 	{
-		for (const auto& texture_slot : m_texture_slots)
+		for (const auto& texture : m_textures)
 		{
-			if (!texture_slot.ptr)
+			if (!texture.second)
 				continue;
 
-			if (texture_slot.ptr->GetResourceFilePath() == path)
+			if (texture.second->GetResourceFilePath() == path)
 				return true;
 		}
 
 		return false;
 	}
 
-	string Material::GetTexturePathByType(const TextureType type)
+	const string& Material::GetTexturePathByType(const TextureType type)
 	{
-		const auto texture_slot = GetTextureSlotByType(type);
-		return texture_slot.ptr == nullptr ? NOT_ASSIGNED : texture_slot.ptr->GetResourceFilePath();
+		if (!HasTexture(type))
+			return NOT_ASSIGNED;
+
+		return m_textures[type]->GetResourceFilePath();
 	}
 
 	vector<string> Material::GetTexturePaths()
 	{
 		vector<string> paths;
-		for (const auto& texture_slot : m_texture_slots)
+		for (const auto& texture : m_textures)
 		{
-			if (texture_slot.ptr == nullptr)
+			if (!texture.second)
 				continue;
 
-			paths.emplace_back(texture_slot.ptr->GetResourceFilePath());
+			paths.emplace_back(texture.second->GetResourceFilePath());
 		}
 
 		return paths;
@@ -292,70 +229,27 @@ namespace Spartan
 		m_shader = GetOrCreateShader(shader_flags);
 	}
 
-	shared_ptr<ShaderVariation> Material::GetOrCreateShader(const unsigned long shader_flags)
+	const std::shared_ptr<ShaderVariation>& Material::GetOrCreateShader(const unsigned long shader_flags)
 	{
 		if (!m_context)
 		{
 			LOG_ERROR("Context is null, can't execute function");
-			return nullptr;
+			static shared_ptr<ShaderVariation> empty;
+			return empty;
 		}
 
 		// If an appropriate shader already exists, return it instead
-		if (auto existing_shader = ShaderVariation::GetMatchingShader(shader_flags))
+		if (const auto& existing_shader = ShaderVariation::GetMatchingShader(shader_flags))
 			return existing_shader;
 
 		// Create and compile shader
 		auto shader = make_shared<ShaderVariation>(m_rhi_device, m_context);
 		const auto dir_shaders = m_context->GetSubsystem<ResourceCache>()->GetDataDirectory(Asset_Shaders);
 		shader->Compile(dir_shaders + "GBuffer.hlsl", shader_flags);
-
-		return shader;
+		return move(shader);
 	}
 
-	void Material::SetMultiplier(const TextureType type, const float value)
-	{
-		if (type == TextureType_Roughness)
-		{
-			m_roughness_multiplier = value;
-		}
-		else if (type == TextureType_Metallic)
-		{
-			m_metallic_multiplier = value;
-		}
-		else if (type == TextureType_Normal)
-		{
-			m_normal_multiplier = value;
-		}
-		else if (type == TextureType_Height)
-		{
-			m_height_multiplier = value;
-		}
-	}
-
-	void Material::TextureBasedMultiplierAdjustment()
-	{
-		if (HasTexture(TextureType_Roughness))
-		{
-			SetRoughnessMultiplier(1.0f);
-		}
-
-		if (HasTexture(TextureType_Metallic))
-		{
-			SetMetallicMultiplier(1.0f);
-		}
-
-		if (HasTexture(TextureType_Normal))
-		{
-			SetNormalMultiplier(1.0f);
-		}
-
-		if (HasTexture(TextureType_Height))
-		{
-			SetHeightMultiplier(1.0f);
-		}
-	}
-
-	void Material::UpdateConstantBuffer()
+	bool Material::UpdateConstantBuffer()
 	{
 		// Has to match GBuffer.hlsl
 		if (!m_constant_buffer_gpu)
@@ -366,30 +260,31 @@ namespace Spartan
 
 		// Determine if the buffer needs to update
 		auto update = false;
-		update = m_constant_buffer_cpu.mat_albedo			!= GetColorAlbedo() 		? true : update;
-		update = m_constant_buffer_cpu.mat_tiling_uv		!= GetTiling()				? true : update;
-		update = m_constant_buffer_cpu.mat_offset_uv		!= GetOffset()				? true : update;
-		update = m_constant_buffer_cpu.mat_roughness_mul	!= GetRoughnessMultiplier() ? true : update;
-		update = m_constant_buffer_cpu.mat_metallic_mul		!= GetMetallicMultiplier()	? true : update;
-		update = m_constant_buffer_cpu.mat_normal_mul		!= GetNormalMultiplier()	? true : update;
-		update = m_constant_buffer_cpu.mat_shading_mode		!= float(GetShadingMode())	? true : update;
+		update = m_constant_buffer_cpu.mat_albedo			!= GetColorAlbedo() 					? true : update;
+		update = m_constant_buffer_cpu.mat_tiling_uv		!= GetTiling()							? true : update;
+		update = m_constant_buffer_cpu.mat_offset_uv		!= GetOffset()							? true : update;
+		update = m_constant_buffer_cpu.mat_roughness_mul	!= GetMultiplier(TextureType_Roughness) ? true : update;
+		update = m_constant_buffer_cpu.mat_metallic_mul		!= GetMultiplier(TextureType_Metallic)	? true : update;
+		update = m_constant_buffer_cpu.mat_normal_mul		!= GetMultiplier(TextureType_Normal)	? true : update;
+		update = m_constant_buffer_cpu.mat_height_mul		!= GetMultiplier(TextureType_Height)	? true : update;
+		update = m_constant_buffer_cpu.mat_shading_mode		!= static_cast<float>(GetShadingMode())	? true : update;
 
 		if (!update)
-			return;
+			return true;
 
 		auto buffer = static_cast<ConstantBufferData*>(m_constant_buffer_gpu->Map());
 
 		buffer->mat_albedo			= m_constant_buffer_cpu.mat_albedo			= GetColorAlbedo();
 		buffer->mat_tiling_uv		= m_constant_buffer_cpu.mat_tiling_uv		= GetTiling();
 		buffer->mat_offset_uv		= m_constant_buffer_cpu.mat_offset_uv		= GetOffset();
-		buffer->mat_roughness_mul	= m_constant_buffer_cpu.mat_roughness_mul	= GetRoughnessMultiplier();
-		buffer->mat_metallic_mul	= m_constant_buffer_cpu.mat_metallic_mul	= GetMetallicMultiplier();
-		buffer->mat_normal_mul		= m_constant_buffer_cpu.mat_normal_mul		= GetNormalMultiplier();
-		buffer->mat_height_mul		= m_constant_buffer_cpu.mat_normal_mul		= GetHeightMultiplier();
-		buffer->mat_shading_mode	= m_constant_buffer_cpu.mat_shading_mode	= float(GetShadingMode());
+		buffer->mat_roughness_mul	= m_constant_buffer_cpu.mat_roughness_mul	= GetMultiplier(TextureType_Roughness);
+		buffer->mat_metallic_mul	= m_constant_buffer_cpu.mat_metallic_mul	= GetMultiplier(TextureType_Metallic);
+		buffer->mat_normal_mul		= m_constant_buffer_cpu.mat_normal_mul		= GetMultiplier(TextureType_Normal);
+		buffer->mat_height_mul		= m_constant_buffer_cpu.mat_height_mul		= GetMultiplier(TextureType_Height);
+		buffer->mat_shading_mode	= m_constant_buffer_cpu.mat_shading_mode	= static_cast<float>(GetShadingMode());
 		buffer->padding				= m_constant_buffer_cpu.padding				= Vector3::Zero;
 
-		m_constant_buffer_gpu->Unmap();
+		return m_constant_buffer_gpu->Unmap();
 	}
 
 	TextureType Material::TextureTypeFromString(const string& type)
@@ -404,5 +299,18 @@ namespace Spartan
 		if (type == "Mask")			return TextureType_Mask;
 
 		return TextureType_Unknown;
+	}
+
+	void Material::UpdateResourceArray()
+	{
+		// They must match the order with which the GBuffer shader defines them
+		m_resources[0] = HasTexture(TextureType_Albedo)		? m_textures[TextureType_Albedo]->GetResource_Texture()		: nullptr;
+		m_resources[1] = HasTexture(TextureType_Roughness)	? m_textures[TextureType_Roughness]->GetResource_Texture()	: nullptr;
+		m_resources[2] = HasTexture(TextureType_Metallic)	? m_textures[TextureType_Metallic]->GetResource_Texture()	: nullptr;
+		m_resources[3] = HasTexture(TextureType_Normal)		? m_textures[TextureType_Normal]->GetResource_Texture()		: nullptr;
+		m_resources[4] = HasTexture(TextureType_Height)		? m_textures[TextureType_Height]->GetResource_Texture()		: nullptr;
+		m_resources[5] = HasTexture(TextureType_Occlusion)	? m_textures[TextureType_Occlusion]->GetResource_Texture()	: nullptr;
+		m_resources[6] = HasTexture(TextureType_Emission)	? m_textures[TextureType_Emission]->GetResource_Texture()	: nullptr;
+		m_resources[7] = HasTexture(TextureType_Mask)		? m_textures[TextureType_Mask]->GetResource_Texture()		: nullptr;
 	}
 }

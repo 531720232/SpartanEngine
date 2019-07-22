@@ -25,7 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "ImGui/Implementation/ImGui_RHI.h"
 #include "ImGui/Implementation/imgui_impl_win32.h"
 #include "Rendering/Renderer.h"
-#include "UI/EditorHelper.h"
+#include "UI/ImGui_Extension.h"
 #include "UI/IconProvider.h"
 #include "UI/Widgets/Widget_Assets.h"
 #include "UI/Widgets/Widget_Console.h"
@@ -35,7 +35,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "UI/Widgets/Widget_Toolbar.h"
 #include "UI/Widgets/Widget_Viewport.h"
 #include "UI/Widgets/Widget_World.h"
-#include "Core/Timer.h"
 //================================================
 
 //= NAMESPACES ==========
@@ -54,17 +53,12 @@ namespace _Editor
 
 Editor::Editor(void* window_handle, void* window_instance, float window_width, float window_height)
 {
-	// Add console widget first so it picks up the engine's initialization output
-	m_widgets.emplace_back(make_unique<Widget_Console>(nullptr));
-
 	// Create engine
-	Settings::Get().SetHandles(window_handle, window_handle, window_instance, window_width, window_height);
-	m_engine = make_unique<Engine>(make_shared<Context>());
+	m_engine = make_unique<Engine>(window_handle, window_handle, window_instance, window_width, window_height);
 	
 	// Acquire useful engine subsystems
 	m_context	= m_engine->GetContext();
 	m_renderer	= m_context->GetSubsystem<Renderer>().get();
-	m_timer		= m_context->GetSubsystem<Timer>().get();
 	m_rhiDevice = m_renderer->GetRhiDevice();
 
 	if (!m_renderer->IsInitialized())
@@ -75,7 +69,7 @@ Editor::Editor(void* window_handle, void* window_instance, float window_width, f
 
 	// ImGui version validation
 	IMGUI_CHECKVERSION();
-	Settings::Get().m_versionImGui = IMGUI_VERSION;
+    m_context->GetSubsystem<Settings>()->m_versionImGui = IMGUI_VERSION;
 
 	// ImGui context creation
 	ImGui::CreateContext();
@@ -154,19 +148,14 @@ void Editor::Tick()
 
 void Editor::Widgets_Create()
 {
-	m_widgets.emplace_back(make_unique<Widget_ProgressDialog>(m_context));
-	m_widgets.emplace_back(make_unique<Widget_Assets>(m_context));
-	m_widgets.emplace_back(make_unique<Widget_Viewport>(m_context));
+    m_widgets.emplace_back(make_unique<Widget_Console>(m_context));
+    m_widgets.emplace_back(make_unique<Widget_MenuBar>(m_context)); _Editor::widget_menu_bar = m_widgets.back().get();
+    m_widgets.emplace_back(make_unique<Widget_Toolbar>(m_context)); _Editor::widget_toolbar = m_widgets.back().get();
+    m_widgets.emplace_back(make_unique<Widget_Viewport>(m_context));	
+	m_widgets.emplace_back(make_unique<Widget_Assets>(m_context));	
 	m_widgets.emplace_back(make_unique<Widget_Properties>(m_context));
-
-	m_widgets.emplace_back(make_unique<Widget_MenuBar>(m_context));
-	_Editor::widget_menu_bar = m_widgets.back().get();
-
-	m_widgets.emplace_back(make_unique<Widget_Toolbar>(m_context));
-	_Editor::widget_toolbar = m_widgets.back().get();
-
-	m_widgets.emplace_back(make_unique<Widget_World>(m_context));
-	_Editor::widget_world = m_widgets.back().get();
+	m_widgets.emplace_back(make_unique<Widget_World>(m_context)); _Editor::widget_world = m_widgets.back().get();
+    m_widgets.emplace_back(make_unique<Widget_ProgressDialog>(m_context));
 }
 
 void Editor::Widgets_Tick()
@@ -176,7 +165,7 @@ void Editor::Widgets_Tick()
 	for (auto& widget : m_widgets)
 	{
 		widget->Begin();
-		widget->Tick(m_timer->GetDeltaTimeSec());
+		widget->Tick();
 		widget->End();
 	}
 
@@ -199,7 +188,9 @@ void Editor::DockSpace_Begin()
 		ImGuiWindowFlags_NoNavFocus;
 
 	// Size, Pos
-	const auto offset_y = _Editor::widget_menu_bar->GetHeight() + _Editor::widget_toolbar->GetHeight();
+	float offset_y = 0;
+    offset_y += _Editor::widget_menu_bar ? _Editor::widget_menu_bar->GetHeight() : 0;
+    offset_y += _Editor::widget_toolbar ? _Editor::widget_toolbar->GetHeight() : 0;
 	const auto viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + offset_y));
 	ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - offset_y));
@@ -248,12 +239,7 @@ void Editor::DockSpace_End()
 
 void Editor::ApplyStyle() const
 {
-	ImGui::StyleColorsDark();
-	auto& style = ImGui::GetStyle();
-
-	const auto font_size	= 16.0f;
-	const auto roundness	= 2.0f;
-	
+	// Color settings
 	const auto text						= ImVec4(0.76f, 0.77f, 0.8f, 1.0f);
 	const auto white					= ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 	const auto black					= ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -262,44 +248,45 @@ void Editor::ApplyStyle() const
 	const auto background_medium		= ImVec4(0.26f, 0.26f, 0.27f, 1.0f);
 	const auto background_light			= ImVec4(0.37f, 0.38f, 0.39f, 1.0f);
 	const auto highlight_blue			= ImVec4(0.172f, 0.239f, 0.341f, 1.0f);	
-	const auto highlight_blue_hovered	= ImVec4(0.202f, 0.269f, 0.391f, 1.0f); 
+	const auto highlight_blue_hovered	= ImVec4(0.29f, 0.42f, 0.65f, 1.0f); 
 	const auto highlight_blue_active	= ImVec4(0.382f, 0.449f, 0.561f, 1.0f);
 	const auto bar_background			= ImVec4(0.078f, 0.082f, 0.09f, 1.0f);
 	const auto bar						= ImVec4(0.164f, 0.180f, 0.231f, 1.0f);
 	const auto bar_hovered				= ImVec4(0.411f, 0.411f, 0.411f, 1.0f);
 	const auto bar_active				= ImVec4(0.337f, 0.337f, 0.368f, 1.0f);
 
+    // Spatial settings
+    const auto font_size    = 24.0f;
+    const auto font_scale   = 0.7f;
+    const auto roundness    = 2.0f;
+
+    // Use default black style as a base
+    ImGui::StyleColorsDark();
+
+    auto& style = ImGui::GetStyle();
+    auto& io    = ImGui::GetIO();
+
 	// Spatial
-	style.WindowBorderSize		= 1.0f;
-	style.FrameBorderSize		= 0.0f;
-	//style.WindowMinSize		= ImVec2(160, 20);
-	style.FramePadding			= ImVec2(5, 5);
-	style.ItemSpacing			= ImVec2(6, 5);
-	//style.ItemInnerSpacing	= ImVec2(6, 4);
-	style.Alpha					= 1.0f;
-	style.WindowRounding		= roundness;
-	style.FrameRounding			= roundness;
-	style.PopupRounding			= roundness;
-	//style.IndentSpacing		= 6.0f;
-	//style.ItemInnerSpacing	= ImVec2(2, 4);
-	//style.ColumnsMinSpacing	= 50.0f;
-	//style.GrabMinSize			= 14.0f;
-	style.GrabRounding			= roundness;
-	style.ScrollbarSize			= 20.0f;
-	style.ScrollbarRounding		= roundness;	
+	style.WindowBorderSize	= 1.0f;
+	style.FrameBorderSize	= 0.0f;
+    style.ScrollbarSize     = 20.0f;
+	style.FramePadding		= ImVec2(5, 5);
+	style.ItemSpacing		= ImVec2(6, 5);	
+	style.WindowRounding	= roundness;
+	style.FrameRounding		= roundness;
+	style.PopupRounding		= roundness;
+	style.GrabRounding		= roundness;
+    style.ScrollbarRounding = roundness;
+    style.Alpha             = 1.0f;	
 
 	// Colors
 	style.Colors[ImGuiCol_Text]						= text;
-	//style.Colors[ImGuiCol_TextDisabled]			= ImVec4(0.86f, 0.93f, 0.89f, 0.28f);
 	style.Colors[ImGuiCol_WindowBg]					= background_dark;
-	//style.Colors[ImGuiCol_ChildBg]				= ImVec4(0.20f, 0.22f, 0.27f, 0.58f);
 	style.Colors[ImGuiCol_Border]					= black;
-	//style.Colors[ImGuiCol_BorderShadow]			= ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
 	style.Colors[ImGuiCol_FrameBg]					= bar;
 	style.Colors[ImGuiCol_FrameBgHovered]			= highlight_blue;
 	style.Colors[ImGuiCol_FrameBgActive]			= highlight_blue_hovered;
 	style.Colors[ImGuiCol_TitleBg]					= background_very_dark;
-	//style.Colors[ImGuiCol_TitleBgCollapsed]		= ImVec4(0.20f, 0.22f, 0.27f, 0.75f);
 	style.Colors[ImGuiCol_TitleBgActive]			= bar;
 	style.Colors[ImGuiCol_MenuBarBg]				= background_very_dark;
 	style.Colors[ImGuiCol_ScrollbarBg]				= bar_background;
@@ -316,21 +303,18 @@ void Editor::ApplyStyle() const
 	style.Colors[ImGuiCol_HeaderHovered]			= highlight_blue_hovered; // hovered items (tree, menu bar etc.)
 	style.Colors[ImGuiCol_HeaderActive]				= highlight_blue_active;
 	style.Colors[ImGuiCol_Separator]				= background_light;
-	//style.Colors[ImGuiCol_SeparatorHovered]		= ImVec4(0.92f, 0.18f, 0.29f, 0.78f);
-	//style.Colors[ImGuiCol_SeparatorActive]		= ImVec4(0.92f, 0.18f, 0.29f, 1.00f);
 	style.Colors[ImGuiCol_ResizeGrip]				= background_medium;
 	style.Colors[ImGuiCol_ResizeGripHovered]		= highlight_blue;
 	style.Colors[ImGuiCol_ResizeGripActive]			= highlight_blue_hovered;
 	style.Colors[ImGuiCol_PlotLines]				= ImVec4(0.0f, 0.7f, 0.77f, 1.0f);
-	//style.Colors[ImGuiCol_PlotLinesHovered]		= ImVec4(0.92f, 0.18f, 0.29f, 1.00f);
 	style.Colors[ImGuiCol_PlotHistogram]			= highlight_blue; // Also used for progress bar
 	style.Colors[ImGuiCol_PlotHistogramHovered]		= highlight_blue_hovered;
 	style.Colors[ImGuiCol_TextSelectedBg]			= highlight_blue;
 	style.Colors[ImGuiCol_PopupBg]					= background_dark;
 	style.Colors[ImGuiCol_DragDropTarget]			= background_light;
-	//style.Colors[ImGuiCol_ModalWindowDarkening]	= ImVec4(0.20f, 0.22f, 0.27f, 0.73f);
 
-	auto& io = ImGui::GetIO();
+    // Font
 	string dir_fonts = m_context->GetSubsystem<ResourceCache>()->GetDataDirectory(Asset_Fonts);
 	io.Fonts->AddFontFromFileTTF((dir_fonts + "CalibriBold.ttf").c_str(), font_size);
+    io.FontGlobalScale = font_scale;
 }

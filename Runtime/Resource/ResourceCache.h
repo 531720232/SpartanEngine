@@ -34,7 +34,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace Spartan
 {
-	#define VALIDATE_RESOURCE_TYPE(T) static_assert(std::is_base_of<IResource, T>::value, "Provided type does not implement IResource")
+    template<typename T>
+    constexpr void validate_resource_type() { static_assert(std::is_base_of<IResource, T>::value, "Provided type does not implement IResource"); }
 
 	enum Asset_Type
 	{
@@ -57,40 +58,39 @@ namespace Spartan
 		bool Initialize() override;
 		//=========================
 
-		//= GET BY ==============================================================================
-		// NAME
+        // Get by name
 		std::shared_ptr<IResource>& GetByName(const std::string& name, Resource_Type type);
 		template <class T> 
 		constexpr std::shared_ptr<T> GetByName(const std::string& name) 
 		{ 
-			VALIDATE_RESOURCE_TYPE(T);
+            validate_resource_type<T>();
+
 			return std::static_pointer_cast<T>(GetByName(name, IResource::TypeToEnum<T>()));
 		}
 
-		// TYPE
+		// Get by type
 		std::vector<std::shared_ptr<IResource>> GetByType(Resource_Type type = Resource_Unknown);
-		// PATH
+
+		// Get by path
 		template <class T>
-		std::shared_ptr<IResource>& GetByPath(const std::string& path)
+		std::shared_ptr<T>& GetByPath(const std::string& path)
 		{
-			VALIDATE_RESOURCE_TYPE(T);
+            validate_resource_type<T>();
 
 			for (auto& resource : m_resource_groups[IResource::TypeToEnum<T>()])
 			{
 				if (path == resource->GetResourceFilePath())
-					return resource;
+					return std::static_pointer_cast<T>(resource);
 			}
 
-			return m_empty_resource;
+			return std::static_pointer_cast<T>(m_empty_resource);
 		}
-		//=======================================================================================
-	
-		//= LOADING/CACHING =============================================================================================
+
 		// Caches resource, or replaces with existing cached resource
 		template <class T>
 		void Cache(std::shared_ptr<T>& resource)
 		{
-			VALIDATE_RESOURCE_TYPE(T);
+            validate_resource_type<T>();
 
 			if (!resource)
 				return;
@@ -112,12 +112,12 @@ namespace Spartan
 		template <class T>
 		std::shared_ptr<T> Load(const std::string& file_path)
 		{
-			VALIDATE_RESOURCE_TYPE(T);
+            validate_resource_type<T>();
 
 			if (!FileSystem::FileExists(file_path))
 			{
 				LOGF_ERROR("Path \"%s\" is invalid.", file_path.c_str());
-				return false;
+				return nullptr;
 			}
 
 			// Try to make the path relative to the engine (in case it isn't)
@@ -149,35 +149,34 @@ namespace Spartan
 			// Cache it and cast it
 			return typed;
 		}
-		//===============================================================================================================
 
 		//= I/O ======================
 		void SaveResourcesToFiles();
 		void LoadResourcesFromFiles();
 		//============================
 
-		//= MISC ============================================================
+		//= MISC ========================================================
 		// Memory
-		unsigned int GetMemoryUsage(Resource_Type type = Resource_Unknown);
+		uint32_t GetMemoryUsage(Resource_Type type = Resource_Unknown);
 		// Unloads all resources
 		void Clear() { m_resource_groups.clear(); }
 		// Returns all resources of a given type
-		unsigned int GetResourceCount(Resource_Type type = Resource_Unknown);
-		//===================================================================
+		uint32_t GetResourceCount(Resource_Type type = Resource_Unknown);
+		//===============================================================
 
-		//= DIRECTORIES ===============================================================
+		//= DIRECTORIES =======================================================
 		void AddDataDirectory(Asset_Type type, const std::string& directory);
 		const std::string& GetDataDirectory(Asset_Type type);
 		void SetProjectDirectory(const std::string& directory);
 		std::string GetProjectDirectoryAbsolute() const;
-		const std::string& GetProjectDirectory() const	{ return m_project_directory; }
-		std::string GetDataDirectory() const			{ return "Data//"; }
-		//=============================================================================
+		const auto& GetProjectDirectory() const	{ return m_project_directory; }
+        auto GetDataDirectory() const			{ return "Data//"; }
+		//=====================================================================
 
 		// Importers
-		ModelImporter* GetModelImporter() const { return m_importer_model.get(); }
-		ImageImporter* GetImageImporter() const { return m_importer_image.get(); }
-		FontImporter* GetFontImporter() const	{ return m_importer_font.get(); }
+		auto GetModelImporter() const { return m_importer_model.get(); }
+		auto GetImageImporter() const { return m_importer_image.get(); }
+		auto GetFontImporter()  const { return m_importer_font.get(); }
 
 	private:
 		// Cache

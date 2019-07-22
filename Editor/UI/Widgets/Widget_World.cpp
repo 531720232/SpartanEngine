@@ -22,7 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ===============================
 #include "Widget_World.h"
 #include "Widget_Properties.h"
-#include "../DragDrop.h"
+#include "../ImGui_Extension.h"
 #include "../../ImGui/Source/imgui_stdlib.h"
 #include "Input/Input.h"
 #include "Resource/ProgressReport.h"
@@ -49,7 +49,7 @@ namespace _Widget_World
 	static World* g_world			= nullptr;
 	static Input* g_input			= nullptr;
 	static bool g_popupRenameentity	= false;
-	static DragDropPayload g_payload;
+	static ImGuiEx::DragDropPayload g_payload;
 	// entities in relation to mouse events
 	static Entity* g_entity_copied	= nullptr;
 	static Entity* g_entity_hovered	= nullptr;
@@ -62,13 +62,13 @@ Widget_World::Widget_World(Context* context) : Widget(context)
 	_Widget_World::g_world	= m_context->GetSubsystem<World>().get();
 	_Widget_World::g_input	= m_context->GetSubsystem<Input>().get();
 
-	m_windowFlags |= ImGuiWindowFlags_HorizontalScrollbar;
+	m_flags |= ImGuiWindowFlags_HorizontalScrollbar;
 
 	// Subscribe to entity clicked engine event
 	EditorHelper::Get().g_on_entity_selected = [this](){ SetSelectedEntity(EditorHelper::Get().g_selected_entity.lock(), false); };
 }
 
-void Widget_World::Tick(float delta_time)
+void Widget_World::Tick()
 {
 	// If something is being loaded, don't parse the hierarchy
 	auto& progress_report			= ProgressReport::Get();
@@ -99,7 +99,7 @@ void Widget_World::TreeShow()
 	if (ImGui::TreeNodeEx("Root", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		// Dropping on the scene node should unparent the entity
-		if (auto payload = DragDrop::Get().GetPayload(DragPayload_entity))
+		if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_entity))
 		{
 			const auto entity_id = get<unsigned int>(payload->data);
 			if (const auto dropped_entity = _Widget_World::g_world->EntityGetById(entity_id))
@@ -164,8 +164,8 @@ void Widget_World::TreeAddEntity(Entity* entity)
 	// Flag - Is selected?
 	if (const auto selected_entity = EditorHelper::Get().g_selected_entity.lock())
 	{
-		const auto is_selectedentity = selected_entity->GetId() == entity->GetId();
-		node_flags |= is_selectedentity ? ImGuiTreeNodeFlags_Selected : 0;
+		const auto is_selected_entity = selected_entity->GetId() == entity->GetId();
+		node_flags |= is_selected_entity ? ImGuiTreeNodeFlags_Selected : 0;
 
 		// Expand to show entity, if it was clicked during this frame
 		if (m_expand_to_showentity)
@@ -173,10 +173,10 @@ void Widget_World::TreeAddEntity(Entity* entity)
 			// If the selected entity is a descendant of the this entity, start expanding (this can happen if the user clicks on something in the 3D scene)
 			if (selected_entity->GetTransform_PtrRaw()->IsDescendantOf(entity->GetTransform_PtrRaw()))
 			{
-				ImGui::SetNextTreeNodeOpen(true);
+				ImGui::SetNextItemOpen(true);
 
 				// Stop expanding when we have reached the selected entity (it's visible to the user)
-				if (is_selectedentity)
+				if (is_selected_entity)
 				{
 					m_expand_to_showentity = false;
 				}
@@ -253,12 +253,12 @@ void Widget_World::EntityHandleDragDrop(Entity* entity_ptr) const
 	if (ImGui::BeginDragDropSource())
 	{
 		_Widget_World::g_payload.data = entity_ptr->GetId();
-		_Widget_World::g_payload.type = DragPayload_entity;
-		DragDrop::Get().DragPayload(_Widget_World::g_payload);
+		_Widget_World::g_payload.type = ImGuiEx::DragPayload_entity;
+		ImGuiEx::CreateDragPayload(_Widget_World::g_payload);
 		ImGui::EndDragDropSource();
 	}
 	// Drop
-	if (auto payload = DragDrop::Get().GetPayload(DragPayload_entity))
+	if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_entity))
 	{
 		const auto entity_id = get<unsigned int>(payload->data);
 		if (const auto dropped_entity = _Widget_World::g_world->EntityGetById(entity_id))
@@ -492,7 +492,7 @@ void Widget_World::ActionEntityCreateCube()
 	auto entity = ActionEntityCreateEmpty();
 	auto renderable = entity->AddComponent<Renderable>();
 	renderable->GeometrySet(Geometry_Default_Cube);
-	renderable->MaterialUseDefault();
+	renderable->UseDefaultMaterial();
 	entity->SetName("Cube");
 }
 
@@ -501,7 +501,7 @@ void Widget_World::ActionEntityCreateQuad()
 	auto entity = ActionEntityCreateEmpty();
 	auto renderable = entity->AddComponent<Renderable>();
 	renderable->GeometrySet(Geometry_Default_Quad);
-	renderable->MaterialUseDefault();
+	renderable->UseDefaultMaterial();
 	entity->SetName("Quad");
 }
 
@@ -510,7 +510,7 @@ void Widget_World::ActionEntityCreateSphere()
 	auto entity = ActionEntityCreateEmpty();
 	auto renderable = entity->AddComponent<Renderable>();
 	renderable->GeometrySet(Geometry_Default_Sphere);
-	renderable->MaterialUseDefault();
+	renderable->UseDefaultMaterial();
 	entity->SetName("Sphere");
 }
 
@@ -519,7 +519,7 @@ void Widget_World::ActionEntityCreateCylinder()
 	auto entity = ActionEntityCreateEmpty();
 	auto renderable = entity->AddComponent<Renderable>();
 	renderable->GeometrySet(Geometry_Default_Cylinder);
-	renderable->MaterialUseDefault();
+	renderable->UseDefaultMaterial();
 	entity->SetName("Cylinder");
 }
 
@@ -528,7 +528,7 @@ void Widget_World::ActionEntityCreateCone()
 	auto entity = ActionEntityCreateEmpty();
 	auto renderable = entity->AddComponent<Renderable>();
 	renderable->GeometrySet(Geometry_Default_Cone);
-	renderable->MaterialUseDefault();
+	renderable->UseDefaultMaterial();
 	entity->SetName("Cone");
 }
 

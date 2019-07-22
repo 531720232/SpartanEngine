@@ -46,7 +46,7 @@ namespace Spartan
 	bool RHI_Texture::SaveToFile(const string& file_path)
 	{
 		// Check to see if the file already exists (if so, get the byte count)
-		unsigned int byte_count = 0;
+		uint32_t byte_count = 0;
 		{
 			if (FileSystem::FileExists(file_path))
 			{
@@ -58,7 +58,7 @@ namespace Spartan
 			}
 		}
 
-		bool append = true;
+		auto append = true;
 		auto file = make_unique<FileStream>(file_path, FileStream_Write | FileStream_Append);
 		if (!file->IsOpen())
 			return false;
@@ -69,9 +69,9 @@ namespace Spartan
 		{
 			file->Skip
 			(
-				sizeof(unsigned int) +	// byte count
-				sizeof(unsigned int) +	// mipmap count
-				byte_count				// bytes
+				sizeof(uint32_t) +	// byte count
+				sizeof(uint32_t) +	// mipmap count
+				byte_count			// bytes
 			);
 		}
 		else
@@ -81,7 +81,7 @@ namespace Spartan
 			// Write byte count
 			file->Write(byte_count);
 			// Write mipmap count
-			file->Write(static_cast<unsigned int>(m_data.size()));
+			file->Write(static_cast<uint32_t>(m_data.size()));
 			// Write bytes
 			for (auto& mip : m_data)
 			{
@@ -98,10 +98,9 @@ namespace Spartan
 		file->Write(m_width);
 		file->Write(m_height);
 		file->Write(m_channels);
-		file->Write(m_has_mipmaps);
 		file->Write(m_is_grayscale);
 		file->Write(m_is_transparent);
-		file->Write(GetResourceId());
+		file->Write(GetId());
 		file->Write(GetResourceName());
 		file->Write(GetResourceFilePath());
 
@@ -111,7 +110,7 @@ namespace Spartan
 	bool RHI_Texture::LoadFromFile(const string& rawFilePath)
 	{
 		// Make the path relative to the engine
-		auto file_path = FileSystem::GetRelativeFilePath(rawFilePath);
+		const auto file_path = FileSystem::GetRelativeFilePath(rawFilePath);
 
 		// Validate file path
 		if (!FileSystem::FileExists(file_path))
@@ -125,14 +124,14 @@ namespace Spartan
 		m_load_state = LoadState_Started;
 
 		// Load from disk
-		bool texture_data_loaded = false;		
+		auto texture_data_loaded = false;		
 		if (FileSystem::IsEngineTextureFile(file_path)) // engine format (binary)
 		{
 			texture_data_loaded = LoadFromFile_NativeFormat(file_path);
 		}	
 		else if (FileSystem::IsSupportedImageFile(file_path)) // foreign format (most known image formats)
 		{
-			texture_data_loaded = LoadFromFile_ForeignFormat(file_path, m_has_mipmaps);
+			texture_data_loaded = LoadFromFile_ForeignFormat(file_path, m_generate_mipmaps_when_loading);
 		}
 
 		if (!texture_data_loaded)
@@ -160,7 +159,7 @@ namespace Spartan
 		return true;
 	}
 
-	vector<std::byte>* RHI_Texture::GetData(unsigned int index)
+	vector<std::byte>* RHI_Texture::GetData(const uint32_t index)
 	{
 		if (index >= m_data.size())
 		{
@@ -171,10 +170,10 @@ namespace Spartan
 		return &m_data[index];
 	}
 
-	bool RHI_Texture::LoadFromFile_ForeignFormat(const string& file_path, bool generate_mipmaps)
+	bool RHI_Texture::LoadFromFile_ForeignFormat(const string& file_path, const bool generate_mipmaps)
 	{
 		// Load texture
-		ImageImporter* imageImp = m_context->GetSubsystem<ResourceCache>()->GetImageImporter();	
+		auto imageImp = m_context->GetSubsystem<ResourceCache>()->GetImageImporter();	
 		if (!imageImp->Load(file_path, this, generate_mipmaps))
 			return false;
 
@@ -195,8 +194,8 @@ namespace Spartan
 		m_data.shrink_to_fit();
 
 		// Read byte and mipmap count
-		auto byte_count		= file->ReadAs<unsigned int>();
-		auto mipmap_count	= file->ReadAs<unsigned int>();
+		auto byte_count		= file->ReadAs<uint32_t>();
+		auto mipmap_count	= file->ReadAs<uint32_t>();
 
 		// Read bytes
 		m_data.resize(mipmap_count);
@@ -210,23 +209,44 @@ namespace Spartan
 		file->Read(&m_width);
 		file->Read(&m_height);
 		file->Read(&m_channels);
-		file->Read(&m_has_mipmaps);
 		file->Read(&m_is_grayscale);
 		file->Read(&m_is_transparent);
-		SetResourceID(file->ReadAs<unsigned int>());
+		SetId(file->ReadAs<uint32_t>());
 		SetResourceName(file->ReadAs<string>());
 		SetResourceFilePath(file->ReadAs<string>());
 
 		return true;
 	}
 
-	unsigned int RHI_Texture::GetByteCount()
+	uint32_t RHI_Texture::GetChannelCountFromFormat(const RHI_Format format)
 	{
-		unsigned int byte_count = 0;
+		switch (format)
+		{
+			case Format_R8_UNORM:			return 1;
+			case Format_R16_UINT:			return 1;
+			case Format_R16_FLOAT:			return 1;
+			case Format_R32_UINT:			return 1;
+			case Format_R32_FLOAT:			return 1;
+			case Format_D32_FLOAT:			return 1;
+			case Format_R32_FLOAT_TYPELESS:	return 1;
+			case Format_R8G8_UNORM:			return 2;
+			case Format_R16G16_FLOAT:		return 2;
+			case Format_R32G32_FLOAT:		return 2;
+			case Format_R32G32B32_FLOAT:	return 3;
+			case Format_R8G8B8A8_UNORM:		return 4;
+			case Format_R16G16B16A16_FLOAT:	return 4;
+			case Format_R32G32B32A32_FLOAT:	return 4;
+			default:						return 0;
+		}
+	}
+
+	uint32_t RHI_Texture::GetByteCount()
+	{
+		uint32_t byte_count = 0;
 
 		for (auto& mip : m_data)
 		{
-			byte_count += static_cast<unsigned int>(mip.size());
+			byte_count += static_cast<uint32_t>(mip.size());
 		}
 
 		return byte_count;

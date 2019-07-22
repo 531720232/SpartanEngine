@@ -129,10 +129,10 @@ namespace Spartan
 		Activate();
 	}
 
-	void RigidBody::OnTick()
+	void RigidBody::OnTick(float delta_time)
 	{
 		// When in editor mode, get position from transform (so the user can move the body around)
-		if (!Engine::EngineMode_IsSet(Engine_Game))
+		if (!m_context->m_engine->EngineMode_IsSet(Engine_Game))
 		{
 			SetPosition(GetTransform()->GetPosition());
 		}
@@ -466,8 +466,8 @@ namespace Spartan
 	{
 		for (auto it = m_constraints.begin(); it != m_constraints.end(); )
 		{
-			auto itConstraint = *it;
-			if (constraint->GetID() == itConstraint->GetID())
+			const auto itConstraint = *it;
+			if (constraint->GetId() == itConstraint->GetId())
 			{
 				it = m_constraints.erase(it);
 			}

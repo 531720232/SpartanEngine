@@ -1,4 +1,25 @@
-// = INCLUDES ========
+/*
+Copyright(c) 2016-2019 Panos Karabelas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+//= INCLUDES =========
 #include "Common.hlsl"
 //====================
 
@@ -82,7 +103,7 @@ static const float3 sampleKernel[64] =
 };
 
 static const int sample_count		= 32;
-static const float radius			= 0.15f;
+static const float radius			= 0.5f;
 static const float intensity    	= 1.0f;
 static const float2 noiseScale  	= float2(g_resolution.x / 128.0f, g_resolution.y / 128.0f);
 
@@ -95,8 +116,8 @@ float4 mainPS(Pixel_PosUv input) : SV_TARGET
 	float3 noise			= unpack(texNoise.Sample(samplerLinear_wrap, tex_coord * noiseScale).xyz);	
 	float radius_depth		= get_linear_depth(depth) / (1.0f / radius);
 	float occlusion_acc     = 0.0f;
-    float3 color            = float3(0.0f, 0.0f, 0.0f);	
-	
+    float3 color            = float3(0.0f, 0.0f, 0.0f);
+
 	// Construct TBN
 	float3 tangent	= normalize(noise - center_normal * dot(noise, center_normal));
 	float3x3 TBN	= makeTBN(center_normal, tangent);

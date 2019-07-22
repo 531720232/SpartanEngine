@@ -23,29 +23,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "RHI_Device.h"
 #include "../Core/Context.h"
 #include "../Core/Settings.h"
+#include "../Core/Timer.h"
 #include "../Math/MathHelper.h"
 #include <algorithm>
 //=============================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-//=============================
+//============================
 
 namespace Spartan
 {
-	void RHI_Device::AddDisplayMode(unsigned int width, unsigned int height, unsigned int refresh_rate_numerator, unsigned int refresh_rate_denominator)
+	void RHI_Device::AddDisplayMode(uint32_t width, uint32_t height, uint32_t refresh_rate_numerator, uint32_t refresh_rate_denominator)
 	{
 		auto& mode = m_displayModes.emplace_back(width, height, refresh_rate_numerator, refresh_rate_denominator);
-
-		// Try to deduce the maximum frame rate based on how fast the monitor is
-		if (Settings::Get().GetFpsPolicy() == FPS_MonitorMatch)
-		{
-			Settings::Get().SetFpsLimit(Helper::Max(Settings::Get().GetFpsLimit(), mode.refreshRate));
-		}
+        // Let the timer know about the refresh rates this monitor is capable of (will result in low latency/smooth ticking)
+		m_context->GetSubsystem<Timer>()->AddMonitorRefreshRate(static_cast<double>(mode.refreshRate));
 	}
 
-	bool RHI_Device::GetDidsplayModeFastest(DisplayMode* display_mode)
+	bool RHI_Device::GetDisplayModeFastest(DisplayMode* display_mode)
 	{
 		if (m_displayModes.empty())
 			return false;
@@ -62,7 +59,7 @@ namespace Spartan
 		return true;
 	}
 
-	void RHI_Device::AddAdapter(const string& name, unsigned int memory, unsigned int vendor_id, void* adapter)
+	void RHI_Device::AddAdapter(const string& name, uint32_t memory, uint32_t vendor_id, void* adapter)
 	{
 		m_displayAdapters.emplace_back(name, memory, vendor_id, adapter);
 		sort(m_displayAdapters.begin(), m_displayAdapters.end(), [](const DisplayAdapter& adapter1, const DisplayAdapter& adapter2)

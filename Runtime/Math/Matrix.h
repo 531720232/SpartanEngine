@@ -27,10 +27,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Vector4.h"
 //=====================
 
-//= NAMESPACES ========================
-using namespace Spartan::Math::Helper;
-//=====================================
-
 namespace Spartan::Math
 {
 	class SPARTAN_CLASS Matrix
@@ -65,10 +61,10 @@ namespace Spartan::Math
 		{
 			Matrix mRotation = CreateRotation(rotation);
 
-			m00 = scale.x * mRotation.m00; m01 = scale.x * mRotation.m01; m02 = scale.x * mRotation.m02; m03 = 0.0f;
-			m10 = scale.y * mRotation.m10; m11 = scale.y * mRotation.m11; m12 = scale.y * mRotation.m12; m13 = 0.0f;
-			m20 = scale.z * mRotation.m20; m21 = scale.z * mRotation.m21; m22 = scale.z * mRotation.m22; m23 = 0.0f;
-			m30 = translation.x; m31 = translation.y; m32 = translation.z; m33 = 1.0f;
+			m00 = scale.x * mRotation.m00;  m01 = scale.x * mRotation.m01;  m02 = scale.x * mRotation.m02;  m03 = 0.0f;
+			m10 = scale.y * mRotation.m10;  m11 = scale.y * mRotation.m11;  m12 = scale.y * mRotation.m12;  m13 = 0.0f;
+			m20 = scale.z * mRotation.m20;  m21 = scale.z * mRotation.m21;  m22 = scale.z * mRotation.m22;  m23 = 0.0f;
+			m30 = translation.x;            m31 = translation.y;            m32 = translation.z;            m33 = 1.0f;
 		}
 
 		~Matrix() {}
@@ -76,13 +72,13 @@ namespace Spartan::Math
 		//= TRANSLATION ===========================================
 		Vector3 GetTranslation() { return Vector3(m30, m31, m32); }
 
-		static Matrix CreateTranslation(const Vector3& position)
+		static Matrix CreateTranslation(const Vector3& translation)
 		{
 			return Matrix(
 				1, 0, 0, 0,
 				0, 1, 0, 0,
 				0, 0, 1, 0,
-				position.x, position.y, position.z, 1
+				translation.x, translation.y, translation.z, 1
 			);
 		}
 		//=========================================================
@@ -120,7 +116,7 @@ namespace Spartan::Math
 			);
 		}
 
-		Quaternion GetRotation()
+		Quaternion GetRotation() const
 		{
 			Vector3 scale = GetScale();
 
@@ -193,7 +189,7 @@ namespace Spartan::Math
 		//================================================================================================
 
 		//= SCALE ========================================================================================
-		Vector3 GetScale()
+		Vector3 GetScale() const
 		{
 			int xs = (Sign(m00 * m01 * m02 * m03) < 0) ? -1 : 1;
             int ys = (Sign(m10 * m11 * m12 * m13) < 0) ? -1 : 1;
@@ -259,7 +255,6 @@ namespace Spartan::Math
 		{
 			float yScale = CotF(fieldOfView / 2);
 			float xScale = yScale / aspectRatio;
-
 
 			float zn = nearPlaneDistance;
 			float zf = farPlaneDistance;

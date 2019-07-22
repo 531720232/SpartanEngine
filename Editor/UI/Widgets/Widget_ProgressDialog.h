@@ -32,9 +32,8 @@ class Widget_ProgressDialog : public Widget
 {
 public:
 	Widget_ProgressDialog(Spartan::Context* contex);
-	~Widget_ProgressDialog() {}
-	bool Begin() override;
-	void Tick(float deltaTime) override;
+	~Widget_ProgressDialog() = default;
+	void Tick() override;
 
 private:
 	float m_progress;

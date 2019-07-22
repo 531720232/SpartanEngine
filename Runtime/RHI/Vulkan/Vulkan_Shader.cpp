@@ -45,7 +45,7 @@ namespace Spartan
 {
 	RHI_Shader::~RHI_Shader()
 	{
-		auto rhi_context = m_rhi_device->GetContext();
+		auto rhi_context = m_rhi_device->GetContextRhi();
 
 		if (HasVertexShader())
 		{
@@ -380,11 +380,12 @@ namespace Spartan
 		};
 	}
 	
-	void* RHI_Shader::_Compile(const Shader_Type type, const string& shader, RHI_Vertex_Attribute_Type vertex_attributes /*= Vertex_Attribute_None*/)
+	template <typename T>
+	void* RHI_Shader::_Compile(const Shader_Stage type, const string& shader)
 	{
 		// Deduce some things
-		bool is_file		= FileSystem::IsSupportedShaderFile(shader);
-		wstring file_name	= is_file ? FileSystem::StringToWstring(FileSystem::GetFileNameFromFilePath(shader)) : wstring(L"shader");
+		auto is_file	= FileSystem::IsSupportedShaderFile(shader);
+		auto file_name	= is_file ? FileSystem::StringToWstring(FileSystem::GetFileNameFromFilePath(shader)) : wstring(L"shader");
 		string file_directory;
 		if (is_file)
 		{
@@ -394,19 +395,17 @@ namespace Spartan
 		// Arguments
 		auto entry_point		= FileSystem::StringToWstring((type == Shader_Vertex) ? _RHI_Shader::entry_point_vertex : _RHI_Shader::entry_point_pixel);
 		auto target_profile		= FileSystem::StringToWstring((type == Shader_Vertex) ? "vs_" + _RHI_Shader::shader_model : "ps_" + _RHI_Shader::shader_model);
-		// auto include_directory	= wstring(L"-I ") + file_directory; // Doesn't work
-		vector<LPCWSTR> arguments;
+		vector<LPCWSTR> arguments = 
 		{	
-			arguments.emplace_back(L"-spirv");
-			arguments.emplace_back(L"-fspv-reflect");			
-			arguments.emplace_back(L"-fvk-use-dx-layout");
-			//if (is_file) arguments.emplace_back(include_directory.c_str()); // Doesn't work
-			if (type == Shader_Vertex) arguments.emplace_back(L"-fvk-invert-y"); // Can only be used in VS/DS/GS
-			arguments.emplace_back(L"-flegacy-macro-expansion");
+            L"-spirv",
+            L"-fspv-reflect",
+            L"-fvk-use-dx-layout",
+            L"-flegacy-macro-expansion",
 			#ifdef DEBUG
-			arguments.emplace_back(L"-Zi");
+			L"-Zi"
 			#endif
-		}
+		};
+        if (type == Shader_Vertex) arguments.emplace_back(L"-fvk-invert-y"); // Can only be used in VS/DS/GS
 
 		// Create standard defines
 		vector<DxcDefine> defines =
@@ -414,6 +413,7 @@ namespace Spartan
 			DxcDefine{ L"COMPILE_VS", type == Shader_Vertex ? L"1" : L"0" },
 			DxcDefine{ L"COMPILE_PS", type == Shader_Pixel ? L"1" : L"0" }
 		};
+
 		// Convert defines to wstring...
 		map<wstring, wstring> defines_wstring;
 		for (const auto& define : m_defines)
@@ -422,6 +422,7 @@ namespace Spartan
 			auto second = FileSystem::StringToWstring(define.second);
 			defines_wstring[first] = second;
 		}
+
 		// ... and add them to our defines
 		for (const auto& define : defines_wstring)
 		{
@@ -486,7 +487,7 @@ namespace Spartan
 			create_info.codeSize	= static_cast<size_t>(shader_compiled->GetBufferSize());
 			create_info.pCode		= reinterpret_cast<const uint32_t*>(shader_compiled->GetBufferPointer());
 	
-			if (vkCreateShaderModule(m_rhi_device->GetContext()->device, &create_info, nullptr, &shader_module) == VK_SUCCESS)
+			if (vkCreateShaderModule(m_rhi_device->GetContextRhi()->device, &create_info, nullptr, &shader_module) == VK_SUCCESS)
 			{
 				// Reflect shader resources (so that descriptor sets can be created later)
 				_Reflect
@@ -496,19 +497,21 @@ namespace Spartan
 					static_cast<uint32_t>(shader_compiled->GetBufferSize() / 4)
 				);
 
-				// Input layout
-				if (!m_input_layout->Create(nullptr, vertex_attributes))
+				// Create input layout
+				if (RHI_Vertex_Type_To_Enum<T>() != RHI_Vertex_Type_Unknown)
 				{
-					LOGF_ERROR("Failed to create input layout for %s", FileSystem::GetFileNameFromFilePath(m_file_path).c_str());
-				}				
-			}	
-			else
-			{
-				LOG_ERROR("Failed to create shader module.");
+					if (!m_input_layout->Create<T>(nullptr))
+					{
+						LOGF_ERROR("Failed to create input layout for %s", FileSystem::GetFileNameFromFilePath(shader).c_str());
+					}
+				}
 			}
 		}	
-
+		else
+		{
+				LOG_ERROR("Failed to create shader module.");
+		}
 		return static_cast<void*>(shader_module);
-	}
+	}		
 }
 #endif

@@ -21,68 +21,73 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-//= INCLUDES ==============
-#include "RHI_Definition.h"
-#include "RHI_Object.h"
+//= INCLUDES ======================
 #include <memory>
 #include <vector>
-//=========================
+#include "RHI_Definition.h"
+#include "../Core/Spartan_Object.h"
+//=================================
 
 namespace Spartan
 {
 	namespace Math { class Vector4; }
 
-	class RHI_SwapChain : public RHI_Object
+	class RHI_SwapChain : public Spartan_Object
 	{
 	public:
 		RHI_SwapChain(
 			void* window_handle,
 			const std::shared_ptr<RHI_Device>& rhi_device,
-			unsigned int width,
-			unsigned int height,
+			uint32_t width,
+			uint32_t height,
 			RHI_Format format				= Format_R8G8B8A8_UNORM,
 			RHI_Present_Mode present_mode	= Present_Immediate,
-			unsigned int buffer_count		= 1,		
-			void* render_pass				= nullptr
+			uint32_t buffer_count			= 1
 		);
 		~RHI_SwapChain();
 
-		bool Resize(unsigned int width, unsigned int height);
+		bool Resize(uint32_t width, uint32_t height);
 		bool AcquireNextImage();
-		bool Present(void* semaphore_render_finished);
+		bool Present() const;
 
-		auto GetWidth()								{ return m_width; }
-		auto GetHeight()							{ return m_height; }
-		auto IsInitialized()						{ return m_initialized; }
-		auto GetSwapChainView()						{ return m_swap_chain_view; }
-		auto GetRenderTargetView()					{ return m_render_target_view; }
-		auto GetBufferCount()						{ return m_buffer_count; }
-		auto& GetFrameBuffer(unsigned int index)	{ return m_frame_buffers[index]; }
-		auto& GetSemaphoreImageAcquired()			{ return m_semaphores_image_acquired[m_image_index]; }
-		auto& GetImageIndex()						{ return m_image_index; }
+		auto GetWidth()				const									{ return m_width; }
+		auto GetHeight()			const									{ return m_height; }
+		auto IsInitialized()		const									{ return m_initialized; }
+		auto GetSwapChainView()		const									{ return m_swap_chain_view; }
+		auto GetRenderTargetView()	const									{ return m_render_target_view; }
+		auto GetRenderPass()		const									{ return m_render_pass; }
+		auto GetBufferCount()		const									{ return m_buffer_count; }
+		auto& GetFrameBuffer()												{ return m_frame_buffers[m_image_index]; }
+		auto& GetSemaphoreImageAcquired()									{ return m_semaphores_image_acquired[m_image_index]; }
+		auto& GetImageIndex()												{ return m_image_index; }
+		void SetSemaphoreRenderFinished(void* semaphore_cmd_list_consumed)	{ m_semaphore_cmd_list_consumed = semaphore_cmd_list_consumed; }
 
 	private:
-		bool m_initialized				= false;
-		bool m_windowed					= false;
-		unsigned int m_buffer_count		= 0;		
-		unsigned int m_max_resolution	= 16384;
-		unsigned int m_width			= 0;
-		unsigned int m_height			= 0;
-		unsigned int m_flags			= 0;
-		RHI_Format m_format;
-		RHI_Present_Mode m_present_mode;
-		std::shared_ptr<RHI_Device> m_rhi_device;
+		bool CreateRenderPass();
 
+        // Properties
+		bool m_initialized					= false;
+		bool m_windowed						= false;
+		uint32_t m_buffer_count				= 0;		
+		uint32_t m_max_resolution			= 16384;
+		uint32_t m_width					= 0;
+		uint32_t m_height					= 0;
+		uint32_t m_flags					= 0;
+		RHI_Format m_format					= Format_R8G8B8A8_UNORM;
+		RHI_Present_Mode m_present_mode		= Present_Immediate;
+		
 		// API
+		std::shared_ptr<RHI_Device> m_rhi_device;
 		void* m_swap_chain_view				= nullptr;
 		void* m_render_target_view			= nullptr;
 		void* m_surface						= nullptr;	
 		void* m_render_pass					= nullptr;
 		void* m_window_handle				= nullptr;
+		void* m_semaphore_cmd_list_consumed = nullptr;
 		uint32_t m_image_index				= 0;
 		std::vector<void*> m_semaphores_image_acquired;
 		std::vector<void*> m_image_views;
 		std::vector<void*> m_frame_buffers;
-		bool m_first_run = true;
+		bool image_acquired = false;
 	};
 }

@@ -35,8 +35,8 @@ struct Metric
 
 	void AddSample(const float sample)
 	{
-		m_min = Spartan::Math::Helper::Min(m_min, sample);
-		m_max = Spartan::Math::Helper::Max(m_max, sample);
+		m_min = Spartan::Math::Min(m_min, sample);
+		m_max = Spartan::Math::Max(m_max, sample);
 		m_sum += sample;
 		m_sample_count++;
 		m_avg = float(m_sum / static_cast<float>(m_sample_count));
@@ -62,7 +62,7 @@ class Widget_Profiler : public Widget
 {
 public:
 	Widget_Profiler(Spartan::Context* context);
-	void Tick(float delta_time) override;
+	void Tick() override;
 
 private:
 	void ShowCPU();

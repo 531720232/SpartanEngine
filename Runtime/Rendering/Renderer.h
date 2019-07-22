@@ -24,14 +24,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES =====================
 #include <memory>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include "../Core/ISubsystem.h"
-#include "../Math/Matrix.h"
-#include "../Math/Vector2.h"
-#include "../Math/Rectangle.h"
 #include "../Core/Settings.h"
 #include "../RHI/RHI_Definition.h"
 #include "../RHI/RHI_Viewport.h"
+#include "../Math/Matrix.h"
+#include "../Math/Vector2.h"
+#include "../Math/Rectangle.h"
 //================================
 
 namespace Spartan
@@ -48,7 +49,6 @@ namespace Spartan
 	class ShaderLight;
 	class ShaderBuffered;
 	class Profiler;
-
 	namespace Math
 	{
 		class BoundingBox;
@@ -102,16 +102,53 @@ namespace Spartan
 		Renderable_Camera
 	};
 
+	enum Shader_Type
+	{
+		Shader_Gbuffer_V,
+		Shader_Depth_V,
+		Shader_Quad_V,
+		Shader_Texture_P,
+		Shader_Fxaa_P,
+		Shader_Luma_P,
+		Shader_Taa_P,
+		Shader_MotionBlur_P,
+		Shader_Sharperning_P,
+		Shader_ChromaticAberration_P,	
+		Shader_BloomLuminance_P,
+		Shader_BloomBlend_P,
+		Shader_ToneMapping_P,
+		Shader_GammaCorrection_P,
+		Shader_Dithering_P,
+		Shader_DownsampleBox_P,
+		Shader_UpsampleBox_P,
+		Shader_DebugNormal_P,
+		Shader_DebugVelocity_P,
+		Shader_DebugDepth_P,
+		Shader_DebugSsao_P,
+		Shader_Light_Vp,
+		Shader_Color_Vp,
+		Shader_Font_Vp,
+		Shader_ShadowDirectional_Vp,
+		Shader_ShadowPoint_P,
+		Shader_ShadowSpot_P,
+		Shader_Ssao_P,
+		Shader_GizmoTransform_Vp,
+		Shader_Transparent_Vp,
+		Shader_BlurBox_P,
+		Shader_BlurGaussian_P,
+		Shader_BlurGaussianBilateral_P
+	};
+
 	class SPARTAN_CLASS Renderer : public ISubsystem
 	{
 	public:
 		Renderer(Context* context);
 		~Renderer();
 
-		//= Subsystem =============
+		//= Subsystem =======================
 		bool Initialize() override;
-		void Tick() override;
-		//=========================
+		void Tick(float delta_time) override;
+		//===================================
 
 		//= RENDER MODE ==============================================================
 		// Enables an render mode flag
@@ -128,60 +165,67 @@ namespace Spartan
 		void DrawBox(const Math::BoundingBox& box, const Math::Vector4& color = DebugColor, bool depth = true);
 		//=============================================================================================================================================================================
 
-		//= VIEWPORT - INTERNAL ==================================================
-		const RHI_Viewport& GetViewport() const			{ return m_viewport; }
+		//= VIEWPORT & RESOLUTION ================================================
+		const auto& GetViewport() const			        { return m_viewport; }
 		void SetViewport(const RHI_Viewport& viewport)	{ m_viewport = viewport; }
-		Math::Vector2 viewport_editor_offset;
+		
+        const auto& GetResolution() const { return m_resolution; }
+        void SetResolution(uint32_t width, uint32_t height);
+
+        Math::Vector2 viewport_editor_offset;
 		//========================================================================
 
-		//= RESOLUTION - INTERNAL =========================================
-		const Math::Vector2& GetResolution() const { return m_resolution; }
-		void SetResolution(unsigned int width, unsigned int height);
-		//=================================================================
-
-		//= Graphics Settings ====================================================================================================================================================
-		ToneMapping_Type m_tonemapping	= ToneMapping_ACES;
-		float m_exposure				= 1.0f;
-		float m_gamma					= 2.2f;
-		// FXAA
-		float m_fxaa_sub_pixel			= 1.25f;	// The amount of sub-pixel aliasing removal														- Algorithm's default: 0.75f
-		float m_fxaa_edge_threshold		= 0.125f;	// Edge detection threshold. The minimum amount of local contrast required to apply algorithm.  - Algorithm's default: 0.166f
-		float m_fxaa_edge_threshold_min	= 0.0312f;	// Darkness threshold. Trims the algorithm from processing darks								- Algorithm's default: 0.0833f
-		// Bloom
-		float m_bloom_intensity			= 1.0f;		// The intensity of the bloom
-		// Sharpening
-		float m_sharpen_strength		= 1.0f;		// Strength of the sharpening
-		float m_sharpen_clamp			= 0.35f;	// Limits maximum amount of sharpening a pixel receives											- Algorithm's default: 0.035f
-		// Motion Blur
-		float m_motion_blur_strength	= 3.0f;		// Strength of the motion blur
-		//========================================================================================================================================================================
-
-		//= EDITOR ================================================================================
-		// Transform gizmo
+		//= EDITOR ======================================================================================
 		float m_gizmo_transform_size = 0.015f;
 		float m_gizmo_transform_speed = 12.0f;
-		std::shared_ptr<Entity>& SnapTransformGizmoTo(const std::shared_ptr<Entity>& entity) const;
-		//=========================================================================================
+        const std::shared_ptr<Entity>& SnapTransformGizmoTo(const std::shared_ptr<Entity>& entity) const;
+		//===============================================================================================
 		
-		// DEBUG BUFFER ====================================================================
+		// DEBUG ===========================================================================
 		void SetDebugBuffer(const RendererDebug_Buffer buffer)	{ m_debug_buffer = buffer; }
-		RendererDebug_Buffer GetDebugBuffer() const				{ return m_debug_buffer; }
+		auto GetDebugBuffer() const				                { return m_debug_buffer; }
 		//==================================================================================
 
-		//= RHI INTERNALS ==========================================
-		const auto& GetRhiDevice() const	{ return m_rhi_device; }
-		const auto& GetCmdList() const		{ return m_cmd_list; }
-		//==========================================================
+		//= RHI INTERNALS ================================================
+		const auto& GetRhiDevice()		const { return m_rhi_device; }
+        const auto& GetSwapChain()      const { return m_swap_chain; }
+		const auto& GetPipelineCache()	const { return m_pipeline_cache; }
+		const auto& GetCmdList()		const { return m_cmd_list; }
+		//================================================================
 
-		//= MISC =============================================================================================================================
-		void* GetFrameShaderResource() const;
-		static auto IsRendering()		{ return m_is_rendering; }
-		auto GetFrameNum() const		{ return m_frame_num; }
-		const auto& GetCamera() const	{ return m_camera; }
-		auto GetMaxResolution() const	{ return m_max_resolution; }
-		auto IsInitialized() const		{ return m_initialized; }
-		auto GetClearDepth()			{ return Settings::Get().GetReverseZ() ? 1.0f - m_viewport.GetMaxDepth() : m_viewport.GetMaxDepth(); }
-		//====================================================================================================================================
+		//= MISC ===============================================================================================================
+		auto GetFrameTexture() const	                { return m_render_tex_full_final.get(); }
+		auto GetFrameNum() const		                { return m_frame_num; }
+		const auto& GetCamera() const	                { return m_camera; }
+		auto IsInitialized() const		                { return m_initialized; }	
+        auto& GetShaders()                              { return m_shaders; }    
+        auto GetMaxResolution() const                   { return m_max_resolution; } 
+        auto IsRendering() const                        { return m_is_rendering; }
+        auto GetReverseZ() const                        { return m_reverse_z; }
+        auto GetClearDepth()                            { return m_reverse_z ? m_viewport.depth_min : m_viewport.depth_max; }
+        auto GetComparisonFunction()                    { return m_reverse_z ? Comparison_GreaterEqual : Comparison_LessEqual; }
+        auto GetShadowResolution()                      { return m_resolution_shadow; }
+        void SetShadowResolution(uint32_t resolution);
+        auto GetAnisotropy()                            { return m_anisotropy; }
+        void SetAnisotropy(uint32_t anisotropy);
+		//======================================================================================================================
+
+        //= Graphics Settings ====================================================================================================================================================
+        ToneMapping_Type m_tonemapping  = ToneMapping_Uncharted2;
+        float m_exposure                = 1.5f;
+        float m_gamma                   = 2.2f;
+        // FXAA
+        float m_fxaa_sub_pixel          = 1.25f;	// The amount of sub-pixel aliasing removal														- Algorithm's default: 0.75f
+        float m_fxaa_edge_threshold     = 0.125f;	// Edge detection threshold. The minimum amount of local contrast required to apply algorithm.  - Algorithm's default: 0.166f
+        float m_fxaa_edge_threshold_min = 0.0312f;	// Darkness threshold. Trims the algorithm from processing darks								- Algorithm's default: 0.0833f
+        // Bloom
+        float m_bloom_intensity         = 0.1f;		// The intensity of the bloom
+        // Sharpening
+        float m_sharpen_strength        = 1.0f;		// Strength of the sharpening
+        float m_sharpen_clamp           = 0.35f;	// Limits maximum amount of sharpening a pixel receives											- Algorithm's default: 0.035f
+        // Motion Blur
+        float m_motion_blur_strength    = 4.0f;		// Strength of the motion blur
+        //========================================================================================================================================================================
 
 	private:
 		void CreateDepthStencilStates();
@@ -192,14 +236,14 @@ namespace Spartan
 		void CreateShaders();
 		void CreateSamplers();
 		void CreateRenderTextures();
-		void SetDefaultBuffer(unsigned int resolution_width, unsigned int resolution_height, const Math::Matrix& mMVP = Math::Matrix::Identity) const;
+		bool SetDefaultBuffer(uint32_t resolution_width, uint32_t resolution_height, const Math::Matrix& mMVP = Math::Matrix::Identity) const;
 		void RenderablesAcquire(const Variant& renderables);
 		void RenderablesSort(std::vector<Entity*>* renderables);
 		std::shared_ptr<RHI_RasterizerState>& GetRasterizerState(RHI_Cull_Mode cull_mode, RHI_Fill_Mode fill_mode);
 
 		//= PASSES =========================================================================================================================================================
 		void Pass_Main();
-		void Pass_DepthDirectionalLight(Light* light_directional);
+		void Pass_LightDepth();
 		void Pass_GBuffer();
 		void Pass_PreLight(std::shared_ptr<RHI_Texture>& tex_in,				std::shared_ptr<RHI_Texture>& tex_shadows_out,	std::shared_ptr<RHI_Texture>& tex_ssao_out);
 		void Pass_Light(std::shared_ptr<RHI_Texture>& tex_shadows,				std::shared_ptr<RHI_Texture>& tex_ssao,			std::shared_ptr<RHI_Texture>& tex_out);
@@ -215,6 +259,7 @@ namespace Spartan
 		void Pass_MotionBlur(std::shared_ptr<RHI_Texture>& tex_in,				std::shared_ptr<RHI_Texture>& tex_out);
 		void Pass_Dithering(std::shared_ptr<RHI_Texture>& tex_in,				std::shared_ptr<RHI_Texture>& tex_out);
 		void Pass_Bloom(std::shared_ptr<RHI_Texture>& tex_in,					std::shared_ptr<RHI_Texture>& tex_out);
+        void Pass_Upsample(std::shared_ptr<RHI_Texture>& tex_in,                std::shared_ptr<RHI_Texture>& tex_out);
 		void Pass_BlurBox(std::shared_ptr<RHI_Texture>& tex_in,					std::shared_ptr<RHI_Texture>& tex_out, float sigma);
 		void Pass_BlurGaussian(std::shared_ptr<RHI_Texture>& tex_in,			std::shared_ptr<RHI_Texture>& tex_out, float sigma, float pixel_stride = 1.0f);
 		void Pass_BlurBilateralGaussian(std::shared_ptr<RHI_Texture>& tex_in,	std::shared_ptr<RHI_Texture>& tex_out, float sigma, float pixel_stride = 1.0f);
@@ -225,7 +270,7 @@ namespace Spartan
 		void Pass_PerformanceMetrics(std::shared_ptr<RHI_Texture>& tex_out);
 		//==================================================================================================================================================================
 
-		//= RENDER TEXTURES =======================================
+		//= RENDER TEXTURES ==========================================
 		// G-Buffer
 		std::shared_ptr<RHI_Texture> m_g_buffer_albedo;
 		std::shared_ptr<RHI_Texture> m_g_buffer_normal;
@@ -233,53 +278,26 @@ namespace Spartan
 		std::shared_ptr<RHI_Texture> m_g_buffer_velocity;
 		std::shared_ptr<RHI_Texture> m_g_buffer_depth;
 		// 1/1
-		std::shared_ptr<RHI_Texture> m_render_tex_full_hdr_light;
-		std::shared_ptr<RHI_Texture> m_render_tex_full_hdr_light2;
+		std::shared_ptr<RHI_Texture> m_render_tex_full_light;
+		std::shared_ptr<RHI_Texture> m_render_tex_full_light_previous;
+		std::shared_ptr<RHI_Texture> m_render_tex_full_final;
 		std::shared_ptr<RHI_Texture> m_render_tex_full_taa_current;
-		std::shared_ptr<RHI_Texture> m_render_tex_full_taa_history;
-		std::shared_ptr<RHI_Texture> m_render_tex_full_spare;
+		std::shared_ptr<RHI_Texture> m_render_tex_full_taa_history;		
+        std::shared_ptr<RHI_Texture> m_render_tex_full_ssao;
 		// 1/2
 		std::shared_ptr<RHI_Texture> m_render_tex_half_shadows;
-		std::shared_ptr<RHI_Texture> m_render_tex_half_ssao;
-		std::shared_ptr<RHI_Texture> m_render_tex_half_spare;
-		std::shared_ptr<RHI_Texture> m_render_tex_half_spare2;
+        std::shared_ptr<RHI_Texture> m_render_tex_half_ssao;
+		std::shared_ptr<RHI_Texture> m_render_tex_half_ssao_blurred;
 		// 1/4
 		std::shared_ptr<RHI_Texture> m_render_tex_quarter_blur1;
 		std::shared_ptr<RHI_Texture> m_render_tex_quarter_blur2;
-		//=========================================================
+
+        // Bloom
+        std::vector<std::shared_ptr<RHI_Texture>> m_render_tex_bloom;
+		//============================================================
 		
 		//= SHADERS =================================================
-		std::shared_ptr<RHI_Shader> m_vs_gbuffer;
-		std::shared_ptr<ShaderLight> m_vps_light;		
-		std::shared_ptr<RHI_Shader> m_v_depth;
-		std::shared_ptr<ShaderBuffered> m_vps_color;
-		std::shared_ptr<ShaderBuffered> m_vps_font;
-		std::shared_ptr<ShaderBuffered> m_vps_shadow_mapping;
-		std::shared_ptr<ShaderBuffered> m_vps_ssao;
-		std::shared_ptr<ShaderBuffered> m_vps_gizmo_transform;
-		std::shared_ptr<ShaderBuffered> m_vps_transparent;	
-		std::shared_ptr<RHI_Shader> m_vs_quad;
-		std::shared_ptr<RHI_Shader> m_ps_texture;
-		std::shared_ptr<RHI_Shader> m_ps_fxaa;
-		std::shared_ptr<RHI_Shader> m_ps_luma;	
-		std::shared_ptr<RHI_Shader> m_ps_taa;
-		std::shared_ptr<RHI_Shader> m_ps_motion_blur;
-		std::shared_ptr<RHI_Shader> m_ps_sharpening;
-		std::shared_ptr<RHI_Shader> m_ps_chromatic_aberration;
-		std::shared_ptr<RHI_Shader> m_ps_blur_box;
-		std::shared_ptr<ShaderBuffered> m_ps_blur_gaussian;
-		std::shared_ptr<ShaderBuffered> m_ps_blur_gaussian_bilateral;
-		std::shared_ptr<RHI_Shader> m_ps_bloom_bright;
-		std::shared_ptr<RHI_Shader> m_ps_bloom_blend;
-		std::shared_ptr<RHI_Shader> m_ps_tone_mapping;
-		std::shared_ptr<RHI_Shader> m_ps_gamma_correction;
-		std::shared_ptr<RHI_Shader> m_ps_dithering;
-		std::shared_ptr<RHI_Shader> m_ps_downsample_box;
-		std::shared_ptr<RHI_Shader> m_ps_upsample_box;
-		std::shared_ptr<RHI_Shader> m_ps_debug_normal_;
-		std::shared_ptr<RHI_Shader> m_ps_debug_velocity;
-		std::shared_ptr<RHI_Shader> m_ps_debug_depth;
-		std::shared_ptr<RHI_Shader> m_ps_debug_ssao;
+		std::map<Shader_Type, std::shared_ptr<RHI_Shader>> m_shaders;
 		//===========================================================
 
 		//= DEPTH-STENCIL STATES =======================================
@@ -287,10 +305,12 @@ namespace Spartan
 		std::shared_ptr<RHI_DepthStencilState> m_depth_stencil_disabled;
 		//==============================================================
 
-		//= BLEND STATES ================================
+		//= BLEND STATES =====================================
 		std::shared_ptr<RHI_BlendState> m_blend_enabled;
 		std::shared_ptr<RHI_BlendState> m_blend_disabled;
-		//===============================================
+        std::shared_ptr<RHI_BlendState> m_blend_color_max;
+		std::shared_ptr<RHI_BlendState> m_blend_color_min;
+		//====================================================
 
 		//= RASTERIZER STATES =================================================
 		std::shared_ptr<RHI_RasterizerState> m_rasterizer_cull_back_solid;
@@ -332,15 +352,14 @@ namespace Spartan
 		Math::Rectangle m_gizmo_light_rect;
 		//=================================================
 
-		//= RESOLUTION & VIEWPORT =======================================
-		Math::Vector2 m_resolution		= Math::Vector2(1920, 1080);
-		RHI_Viewport m_viewport			= RHI_Viewport(0, 0, 1920, 1080);
-		unsigned int m_max_resolution	= 16384;
-		//===============================================================
+		//= RESOLUTION & VIEWPORT ===================================
+		Math::Vector2 m_resolution	= Math::Vector2(1920, 1080);
+		RHI_Viewport m_viewport		= RHI_Viewport(0, 0, 1920, 1080);
+		uint32_t m_max_resolution	= 16384;
+		//===========================================================
 
 		//= CORE ================================================
 		Math::Rectangle m_quad;
-		std::shared_ptr<RHI_Device> m_rhi_device;
 		std::shared_ptr<RHI_CommandList> m_cmd_list;
 		std::unique_ptr<Font> m_font;	
 		Math::Matrix m_view;
@@ -353,25 +372,37 @@ namespace Spartan
 		Math::Vector2 m_taa_jitter;
 		Math::Vector2 m_taa_jitter_previous;
 		RendererDebug_Buffer m_debug_buffer = RendererDebug_None;
-		unsigned long m_flags = 0;
-		bool m_initialized = false;
+		unsigned long m_flags               = 0;
+		bool m_initialized                  = false;
+        bool m_reverse_z                    = true;
+        uint32_t m_resolution_shadow        = 4096;
+        uint32_t m_resolution_shadow_min    = 128;
+        uint32_t m_anisotropy               = 16;
+        float m_near_plane                  = 0.0f;
+        float m_far_plane                   = 0.0f;
+        uint64_t m_frame_num                = 0;
+        bool m_is_odd_frame                 = false;
+        bool m_is_rendering                 = false;
 		//=======================================================
 
+		//= RHI ============================================
+		std::shared_ptr<RHI_Device> m_rhi_device;
+        std::shared_ptr<RHI_SwapChain> m_swap_chain;
+		std::shared_ptr<RHI_PipelineCache> m_pipeline_cache;
+		//==================================================
+
 		//= ENTITIES/COMPONENTS ============================================
-		Light* GetLightDirectional();
 		std::unordered_map<RenderableType, std::vector<Entity*>> m_entities;
-		float m_near_plane;
-		float m_far_plane;
+       
 		std::shared_ptr<Camera> m_camera;
 		std::shared_ptr<Skybox> m_skybox;
+		Math::Vector3 m_directional_light_avg_dir;
 		//==================================================================
 
-		//= STATS/PROFILING ==============
-		Profiler* m_profiler	= nullptr;
-		uint64_t m_frame_num	= 0;
-		bool m_is_odd_frame		= false;
-		static bool m_is_rendering;
-		//================================
+		//= DEPENDENCIES =========================
+		Profiler* m_profiler	        = nullptr;
+        ResourceCache* m_resource_cache = nullptr;
+		//========================================
 		
 		// Global buffer (holds what is needed by almost every shader)
 		struct ConstantBufferGlobal

@@ -36,7 +36,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-using namespace Helper;
 //============================
 
 namespace Spartan
@@ -48,10 +47,10 @@ namespace Spartan
 		m_material->SetCullMode(Cull_Front);
 		m_material->SetColorAlbedo(Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 		m_material->SetIsEditable(false);
-		m_material->SetShadingMode(Material::Shading_Sky);
+		m_material->SetShadingMode(Shading_Sky);
 		
 		// Texture paths
-		auto dir_cubemaps = GetContext()->GetSubsystem<ResourceCache>()->GetDataDirectory(Asset_Cubemaps);
+		const auto dir_cubemaps = GetContext()->GetSubsystem<ResourceCache>()->GetDataDirectory(Asset_Cubemaps);
 		if (m_environment_type == Skybox_Array)
 		{
 			m_texture_paths =
@@ -90,11 +89,6 @@ namespace Spartan
 		});
 	}
 
-	void Skybox::OnTick()
-	{
-
-	}
-
 	void Skybox::CreateFromArray(const vector<string>& texturePaths)
 	{
 		if (texturePaths.empty())
@@ -127,7 +121,7 @@ namespace Spartan
 
 		// Cubemap
 		{
-			m_texture = static_pointer_cast<RHI_Texture>(make_shared<RHI_TextureCube>(GetContext(), loaderTex->GetWidth(), loaderTex->GetHeight(), loaderTex->GetChannels(), loaderTex->GetFormat(), cubemapData));
+			m_texture = static_pointer_cast<RHI_Texture>(make_shared<RHI_TextureCube>(GetContext(), loaderTex->GetWidth(), loaderTex->GetHeight(), loaderTex->GetFormat(), cubemapData));
 			m_texture->SetResourceName("Cubemap");
 			m_texture->SetWidth(loaderTex->GetWidth());
 			m_texture->SetHeight(loaderTex->GetHeight());
@@ -159,7 +153,7 @@ namespace Spartan
 
 		// Texture
 		{
-			bool m_generate_mipmaps = true;
+			auto m_generate_mipmaps = true;
 			m_texture = static_pointer_cast<RHI_Texture>(make_shared<RHI_Texture2D>(GetContext(), m_generate_mipmaps));
 			m_texture->LoadFromFile(texture_path);
 			m_texture->SetResourceName("SkySphere");

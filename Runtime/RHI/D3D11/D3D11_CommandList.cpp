@@ -19,14 +19,14 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#pragma once
-
 //= IMPLEMENTATION ===============
 #include "../RHI_Implementation.h"
 #ifdef API_GRAPHICS_D3D11
 //================================
 
 //= INCLUDES ========================
+#include "../../Profiling/Profiler.h"
+#include "../../Logging/Log.h"
 #include "../RHI_CommandList.h"
 #include "../RHI_Pipeline.h"
 #include "../RHI_Device.h"
@@ -34,8 +34,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../RHI_Texture.h"
 #include "../RHI_Shader.h"
 #include "../RHI_ConstantBuffer.h"
-#include "../../Profiling/Profiler.h"
-#include "../../Logging/Log.h"
 #include "../RHI_VertexBuffer.h"
 #include "../RHI_IndexBuffer.h"
 #include "../RHI_BlendState.h"
@@ -44,14 +42,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../RHI_InputLayout.h"
 //===================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-//=============================
+//============================
 
 namespace Spartan
 {
-	RHI_CommandList::RHI_CommandList(const std::shared_ptr<RHI_Device>& rhi_device, Profiler* profiler)
+	RHI_CommandList::RHI_CommandList(const shared_ptr<RHI_Device>& rhi_device, Profiler* profiler)
 	{
 		m_commands.reserve(m_initial_capacity);
 		m_commands.resize(m_initial_capacity);
@@ -59,141 +57,188 @@ namespace Spartan
 		m_profiler		= profiler;
 	}
 
-	RHI_CommandList::~RHI_CommandList()
-	{
-		
-	}
+	RHI_CommandList::~RHI_CommandList() = default;
 
-	void RHI_CommandList::Begin(const string& pass_name, void* render_pass, RHI_SwapChain* swap_chain)
+	void RHI_CommandList::Begin(const string& pass_name, RHI_Pipeline* pipeline)
 	{
-		RHI_Command& cmd	= GetCmd();
-		cmd.type			= RHI_Cmd_Begin;
-		cmd.pass_name		= pass_name;
+		if (pipeline)
+		{
+			SetViewport(pipeline->GetState()->viewport);
+			SetBlendState(pipeline->GetState()->blend_state);
+			SetDepthStencilState(pipeline->GetState()->depth_stencil_state);
+			SetRasterizerState(pipeline->GetState()->rasterizer_state);
+			SetInputLayout(pipeline->GetState()->shader_vertex->GetInputLayout());
+			SetShaderVertex(pipeline->GetState()->shader_vertex);
+			SetShaderPixel(pipeline->GetState()->shader_pixel);
+			SetPrimitiveTopology(pipeline->GetState()->primitive_topology);
+		}
+
+		auto& cmd		= GetCmd();
+		cmd.type		= RHI_Cmd_Begin;
+		cmd.pass_name	= pass_name;
 	}
 
 	void RHI_CommandList::End()
 	{
-		RHI_Command& cmd	= GetCmd();
-		cmd.type			= RHI_Cmd_End;
+		auto& cmd	= GetCmd();
+		cmd.type	= RHI_Cmd_End;
 	}
 
-	void RHI_CommandList::Draw(unsigned int vertex_count)
+	void RHI_CommandList::Draw(const uint32_t vertex_count)
 	{
-		RHI_Command& cmd	= GetCmd();
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_Draw;
 		cmd.vertex_count	= vertex_count;
 	}
 
-	void RHI_CommandList::DrawIndexed(unsigned int index_count, unsigned int index_offset, unsigned int vertex_offset)
+	void RHI_CommandList::DrawIndexed(const uint32_t index_count, const uint32_t index_offset, const uint32_t vertex_offset)
 	{
-		RHI_Command& cmd	= GetCmd();
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_DrawIndexed;
 		cmd.index_count		= index_count;
 		cmd.index_offset	= index_offset;
 		cmd.vertex_offset	= vertex_offset;
 	}
 
-	void RHI_CommandList::SetPipeline(RHI_Pipeline* pipeline)
-	{
-		SetViewport(pipeline->m_viewport);
-		SetBlendState(pipeline->m_blend_state);
-		SetDepthStencilState(pipeline->m_depth_stencil_state);
-		SetRasterizerState(pipeline->m_rasterizer_state);
-		SetInputLayout(pipeline->m_shader_vertex->GetInputLayout());
-		SetShaderVertex(pipeline->m_shader_vertex);
-		SetShaderPixel(pipeline->m_shader_pixel);	
-	}
-
 	void RHI_CommandList::SetViewport(const RHI_Viewport& viewport)
 	{
-		RHI_Command& cmd	= GetCmd();
-		cmd.type			= RHI_Cmd_SetViewport;
-		cmd.viewport		= viewport;
+		auto& cmd		= GetCmd();
+		cmd.type		= RHI_Cmd_SetViewport;
+		cmd.viewport	= viewport;
 	}
 
 	void RHI_CommandList::SetScissorRectangle(const Math::Rectangle& scissor_rectangle)
 	{
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetScissorRectangle;
 		cmd.scissor_rectangle	= scissor_rectangle;
 	}
 
-	void RHI_CommandList::SetPrimitiveTopology(RHI_PrimitiveTopology_Mode primitive_topology)
+	void RHI_CommandList::SetPrimitiveTopology(const RHI_PrimitiveTopology_Mode primitive_topology)
 	{
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetPrimitiveTopology;
 		cmd.primitive_topology	= primitive_topology;
 	}
 
 	void RHI_CommandList::SetInputLayout(const RHI_InputLayout* input_layout)
 	{
-		RHI_Command& cmd	= GetCmd();
+		if (!input_layout || !input_layout->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetInputLayout;
 		cmd.input_layout	= input_layout;
 	}
 
 	void RHI_CommandList::SetDepthStencilState(const RHI_DepthStencilState* depth_stencil_state)
 	{
-		RHI_Command& cmd		= GetCmd();
+		if (!depth_stencil_state || !depth_stencil_state->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetDepthStencilState;
 		cmd.depth_stencil_state = depth_stencil_state;
 	}
 
 	void RHI_CommandList::SetRasterizerState(const RHI_RasterizerState* rasterizer_state)
 	{
-		RHI_Command& cmd		= GetCmd();
+		if (!rasterizer_state || !rasterizer_state->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetRasterizerState;
 		cmd.rasterizer_state	= rasterizer_state;
 	}
 
 	void RHI_CommandList::SetBlendState(const RHI_BlendState* blend_state)
 	{
-		RHI_Command& cmd	= GetCmd();
+		if (!blend_state || !blend_state->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetBlendState;
 		cmd.blend_state		= blend_state;
 	}
 
 	void RHI_CommandList::SetBufferVertex(const RHI_VertexBuffer* buffer)
 	{
-		RHI_Command& cmd	= GetCmd();
+		if (!buffer || !buffer->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetVertexBuffer;
 		cmd.buffer_vertex	= buffer;
 	}
 
 	void RHI_CommandList::SetBufferIndex(const RHI_IndexBuffer* buffer)
 	{
-		RHI_Command& cmd	= GetCmd();
+		if (!buffer || !buffer->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetIndexBuffer;
 		cmd.buffer_index	= buffer;
 	}
 
 	void RHI_CommandList::SetShaderVertex(const RHI_Shader* shader)
 	{
-		RHI_Command& cmd	= GetCmd();
+		// Null shaders are allowed, but if a shader is valid, it must have a valid resource
+		if (shader && !shader->GetResource_VertexShader())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetVertexShader;
 		cmd.shader_vertex	= shader;
 	}
 
 	void RHI_CommandList::SetShaderPixel(const RHI_Shader* shader)
 	{
-		RHI_Command& cmd	= GetCmd();
+		if (shader && !shader->GetResource_PixelShader())
+		{
+			LOGF_WARNING("%s hasn't compiled", shader->GetName().c_str());
+			return;
+		}
+
+		auto& cmd			= GetCmd();
 		cmd.type			= RHI_Cmd_SetPixelShader;
 		cmd.shader_pixel	= shader;
 	}
 
-	void RHI_CommandList::SetConstantBuffers(unsigned int start_slot, RHI_Buffer_Scope scope, const vector<void*>& constant_buffers)
+	void RHI_CommandList::SetConstantBuffers(const uint32_t start_slot, const RHI_Buffer_Scope scope, const vector<void*>& constant_buffers)
 	{
-		RHI_Command& cmd				= GetCmd();
+		auto& cmd						= GetCmd();
 		cmd.type						= RHI_Cmd_SetConstantBuffers;
 		cmd.constant_buffers_start_slot = start_slot;
 		cmd.constant_buffers_scope		= scope;
 		cmd.constant_buffers			= constant_buffers;
-		cmd.constant_buffer_count		= static_cast<unsigned int>(constant_buffers.size());
+		cmd.constant_buffer_count		= static_cast<uint32_t>(constant_buffers.size());
 	}
 
-	void RHI_CommandList::SetConstantBuffer(unsigned int start_slot, RHI_Buffer_Scope scope, const shared_ptr<RHI_ConstantBuffer>& constant_buffer)
+	void RHI_CommandList::SetConstantBuffer(const uint32_t start_slot, const RHI_Buffer_Scope scope, const shared_ptr<RHI_ConstantBuffer>& constant_buffer)
 	{
-		RHI_Command& cmd								= GetCmd();
+		auto& cmd										= GetCmd();
 		cmd.type										= RHI_Cmd_SetConstantBuffers;
 		cmd.constant_buffers_start_slot					= start_slot;
 		cmd.constant_buffers_scope						= scope;
@@ -201,59 +246,57 @@ namespace Spartan
 		cmd.constant_buffer_count++;
 	}
 
-	void RHI_CommandList::SetSamplers(unsigned int start_slot, const vector<void*>& samplers)
+	void RHI_CommandList::SetSamplers(const uint32_t start_slot, const vector<void*>& samplers)
 	{
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetSamplers;
 		cmd.samplers_start_slot = start_slot;
 		cmd.samplers			= samplers;
-		cmd.sampler_count		= static_cast<unsigned int>(samplers.size());
+		cmd.sampler_count		= static_cast<uint32_t>(samplers.size());
 	}
 
-	void RHI_CommandList::SetSampler(unsigned int start_slot, const shared_ptr<RHI_Sampler>& sampler)
+	void RHI_CommandList::SetSampler(const uint32_t start_slot, const shared_ptr<RHI_Sampler>& sampler)
 	{
-		RHI_Command& cmd				= GetCmd();
+		if (!sampler || !sampler->GetResource())
+		{
+			LOG_ERROR_INVALID_PARAMETER();
+			return;
+		}
+
+		auto& cmd						= GetCmd();
 		cmd.type						= RHI_Cmd_SetSamplers;
 		cmd.samplers_start_slot			= start_slot;
 		cmd.samplers[cmd.sampler_count] = sampler->GetResource();
 		cmd.sampler_count++;
 	}
 
-	void RHI_CommandList::SetTextures(unsigned int start_slot, const vector<void*>& textures)
+	void RHI_CommandList::SetTextures(const uint32_t start_slot, const void* textures, const uint32_t texture_count, const bool is_array)
 	{
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetTextures;
 		cmd.textures_start_slot = start_slot;
 		cmd.textures			= textures;
-		cmd.texture_count		= static_cast<unsigned int>(textures.size());
+		cmd.texture_count		= texture_count;
+		cmd.is_array			= is_array;
 	}
 
-	void RHI_CommandList::SetTexture(unsigned int start_slot, void* texture)
+	void RHI_CommandList::SetTexture(const uint32_t slot, RHI_Texture* texture)
 	{
-		RHI_Command& cmd				= GetCmd();
-		cmd.type						= RHI_Cmd_SetTextures;
-		cmd.textures_start_slot			= start_slot;
-		cmd.textures[cmd.texture_count] = texture;
-		cmd.texture_count++;
-	}
-
-	void RHI_CommandList::SetTexture(unsigned int start_slot, const shared_ptr<RHI_Texture>& texture)
-	{
-		SetTexture(start_slot, texture->GetResource_Texture());
+		SetTextures(slot, texture ? texture->GetResource_Texture() : nullptr, 1, false);
 	}
 
 	void RHI_CommandList::SetRenderTargets(const vector<void*>& render_targets, void* depth_stencil /*= nullptr*/)
 	{
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_SetRenderTargets;
 		cmd.render_targets		= render_targets;
-		cmd.render_target_count = static_cast<unsigned int>(render_targets.size());
+		cmd.render_target_count = static_cast<uint32_t>(render_targets.size());
 		cmd.depth_stencil		= depth_stencil;
 	}
 
 	void RHI_CommandList::SetRenderTarget(void* render_target, void* depth_stencil /*= nullptr*/)
 	{
-		RHI_Command& cmd							= GetCmd();
+		auto& cmd									= GetCmd();
 		cmd.type									= RHI_Cmd_SetRenderTargets;	
 		cmd.depth_stencil							= depth_stencil;
 		cmd.render_targets[cmd.render_target_count] = render_target;
@@ -267,13 +310,13 @@ namespace Spartan
 
 	void RHI_CommandList::ClearRenderTarget(void* render_target, const Vector4& color)
 	{
-		RHI_Command& cmd				= GetCmd();
+		auto& cmd						= GetCmd();
 		cmd.type						= RHI_Cmd_ClearRenderTarget;
 		cmd.render_target_clear			= render_target;
 		cmd.render_target_clear_color	= color;
 	}
 
-	void RHI_CommandList::ClearDepthStencil(void* depth_stencil, unsigned int flags, float depth, unsigned int stencil /*= 0*/)
+	void RHI_CommandList::ClearDepthStencil(void* depth_stencil, const uint32_t flags, const float depth, const uint32_t stencil /*= 0*/)
 	{
 		if (!depth_stencil)
 		{
@@ -281,7 +324,7 @@ namespace Spartan
 			return;
 		}
 
-		RHI_Command& cmd		= GetCmd();
+		auto& cmd				= GetCmd();
 		cmd.type				= RHI_Cmd_ClearDepthStencil;
 		cmd.depth_stencil		= depth_stencil;
 		cmd.depth_clear_flags	= flags;
@@ -289,20 +332,20 @@ namespace Spartan
 		cmd.depth_clear_stencil = stencil;
 	}
 
-	bool RHI_CommandList::Submit()
+	bool RHI_CommandList::Submit(bool profile /*=true*/)
 	{
-		auto context		= m_rhi_device->GetContext();
-		auto device_context	= m_rhi_device->GetContext()->device_context;
+		auto context		= m_rhi_device->GetContextRhi();
+		auto device_context	= m_rhi_device->GetContextRhi()->device_context;
 
-		for (unsigned int cmd_index = 0; cmd_index < m_command_count; cmd_index++)
+		for (uint32_t cmd_index = 0; cmd_index < m_command_count; cmd_index++)
 		{
-			RHI_Command& cmd = m_commands[cmd_index];
+			auto& cmd = m_commands[cmd_index];
 
 			switch (cmd.type)
 			{
 				case RHI_Cmd_Begin:
 				{
-					m_profiler->TimeBlockStart(cmd.pass_name, true, true);
+                    if (profile) m_profiler->TimeBlockStart(cmd.pass_name, true, true);
 					#ifdef DEBUG
 					context->annotation->BeginEvent(FileSystem::StringToWstring(cmd.pass_name).c_str());
 					#endif
@@ -314,7 +357,7 @@ namespace Spartan
 					#ifdef DEBUG
 					context->annotation->EndEvent();
 					#endif
-					m_profiler->TimeBlockEnd();
+					if (profile) m_profiler->TimeBlockEnd();
 					break;
 				}
 
@@ -328,8 +371,6 @@ namespace Spartan
 
 				case RHI_Cmd_DrawIndexed:
 				{
-					SPARTAN_ASSERT(cmd.index_count != 0);
-
 					device_context->DrawIndexed
 					(
 						static_cast<UINT>(cmd.index_count),
@@ -344,12 +385,12 @@ namespace Spartan
 				case RHI_Cmd_SetViewport:
 				{
 					D3D11_VIEWPORT d3d11_viewport;
-					d3d11_viewport.TopLeftX	= cmd.viewport.GetX();
-					d3d11_viewport.TopLeftY	= cmd.viewport.GetY();
-					d3d11_viewport.Width	= cmd.viewport.GetWidth();
-					d3d11_viewport.Height	= cmd.viewport.GetHeight();
-					d3d11_viewport.MinDepth	= cmd.viewport.GetMinDepth();
-					d3d11_viewport.MaxDepth	= cmd.viewport.GetMaxDepth();
+					d3d11_viewport.TopLeftX	= cmd.viewport.x;
+					d3d11_viewport.TopLeftY	= cmd.viewport.y;
+					d3d11_viewport.Width	= cmd.viewport.width;
+					d3d11_viewport.Height	= cmd.viewport.height;
+					d3d11_viewport.MinDepth	= cmd.viewport.depth_min;
+					d3d11_viewport.MaxDepth	= cmd.viewport.depth_max;
 
 					device_context->RSSetViewports(1, &d3d11_viewport);
 
@@ -377,14 +418,14 @@ namespace Spartan
 
 				case RHI_Cmd_SetInputLayout:
 				{
-					device_context->IASetInputLayout(static_cast<ID3D11InputLayout*>(cmd.input_layout->GetBuffer()));
+					device_context->IASetInputLayout(static_cast<ID3D11InputLayout*>(cmd.input_layout->GetResource()));
 					break;
 				}
 
 				case RHI_Cmd_SetDepthStencilState:
 				{
 					device_context->OMSetDepthStencilState(
-						static_cast<ID3D11DepthStencilState*>(cmd.depth_stencil_state->GetBuffer()), 1
+						static_cast<ID3D11DepthStencilState*>(cmd.depth_stencil_state->GetResource()), 1
 					);
 					break;
 				}
@@ -392,7 +433,7 @@ namespace Spartan
 				case RHI_Cmd_SetRasterizerState:
 				{
 					device_context->RSSetState(
-						static_cast<ID3D11RasterizerState*>(cmd.rasterizer_state->GetBuffer())
+						static_cast<ID3D11RasterizerState*>(cmd.rasterizer_state->GetResource())
 					);
 
 					break;
@@ -403,7 +444,7 @@ namespace Spartan
 					FLOAT blend_factor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 					device_context->OMSetBlendState(
-						static_cast<ID3D11BlendState*>(cmd.blend_state->GetBuffer()),
+						static_cast<ID3D11BlendState*>(cmd.blend_state->GetResource()),
 						blend_factor,
 						0xffffffff
 					);
@@ -415,7 +456,7 @@ namespace Spartan
 				{
 					auto ptr			= static_cast<ID3D11Buffer*>(cmd.buffer_vertex->GetResource());
 					auto stride			= cmd.buffer_vertex->GetStride();
-					unsigned int offset = 0;
+					uint32_t offset = 0;
 					device_context->IASetVertexBuffers(0, 1, &ptr, &stride, &offset);
 
 					m_profiler->m_rhi_bindings_buffer_vertex++;
@@ -489,12 +530,25 @@ namespace Spartan
 
 				case RHI_Cmd_SetTextures:
 				{
-					device_context->PSSetShaderResources
-					(
-						static_cast<UINT>(cmd.textures_start_slot),
-						static_cast<UINT>(cmd.texture_count),
-						reinterpret_cast<ID3D11ShaderResourceView* const*>(cmd.textures.data())
-					);
+					if (cmd.is_array)
+					{
+						device_context->PSSetShaderResources
+						(
+							static_cast<UINT>(cmd.textures_start_slot),
+							static_cast<UINT>(cmd.texture_count),
+							reinterpret_cast<ID3D11ShaderResourceView* const*>(cmd.textures)
+						);
+					}
+					else
+					{
+						const void* srv_array[1] = { cmd.textures };
+						device_context->PSSetShaderResources
+						(
+							static_cast<UINT>(cmd.textures_start_slot),
+							static_cast<UINT>(cmd.texture_count),
+							reinterpret_cast<ID3D11ShaderResourceView* const*>(&srv_array)
+						);
+					}
 
 					m_profiler->m_rhi_bindings_texture++;
 					break;
@@ -526,8 +580,8 @@ namespace Spartan
 				case RHI_Cmd_ClearDepthStencil:
 				{
 					UINT clear_flags = 0;
-					clear_flags |= cmd.depth_clear_flags & Clear_Depth	? D3D11_CLEAR_DEPTH : 0;
-					clear_flags |= cmd.depth_clear_flags & Clear_Stencil ? D3D11_CLEAR_STENCIL : 0;
+					clear_flags |= (cmd.depth_clear_flags & Clear_Depth)	? D3D11_CLEAR_DEPTH : 0;
+					clear_flags |= (cmd.depth_clear_flags & Clear_Stencil)	? D3D11_CLEAR_STENCIL : 0;
 
 					device_context->ClearDepthStencilView
 					(
@@ -551,7 +605,7 @@ namespace Spartan
 		// Grow capacity if needed
 		if (m_command_count >= m_commands.size())
 		{
-			unsigned int new_size = m_command_count + 100;
+			const auto new_size = m_command_count + 100;
 			m_commands.reserve(new_size);
 			m_commands.resize(new_size);
 			LOGF_WARNING("Command list has grown to fit %d commands. Consider making the capacity larger to avoid re-allocations.", m_command_count + 1);
@@ -563,9 +617,9 @@ namespace Spartan
 
 	void RHI_CommandList::Clear()
 	{
-		for (unsigned int cmd_index = 0; cmd_index < m_command_count; cmd_index++)
+		for (uint32_t cmd_index = 0; cmd_index < m_command_count; cmd_index++)
 		{
-			RHI_Command& cmd = m_commands[cmd_index];
+			auto& cmd = m_commands[cmd_index];
 			cmd.Clear();
 		}
 

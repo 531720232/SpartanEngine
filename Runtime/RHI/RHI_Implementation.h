@@ -33,7 +33,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma warning(push, 0) // Hide warnings which belong DirectX
 #include <d3d11_4.h>
+#pragma warning(pop)
 
 static const DXGI_SWAP_EFFECT d3d11_swap_effect[] =
 {
@@ -104,17 +106,6 @@ static const D3D11_COMPARISON_FUNC d3d11_compare_operator[] =
 	D3D11_COMPARISON_ALWAYS
 };
 
-static const D3D11_FILTER d3d11_filter[] =
-{
-	D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT,
-	D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
-	D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR,
-	D3D11_FILTER_MIN_MAG_MIP_POINT,
-	D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT,
-	D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-	D3D11_FILTER_ANISOTROPIC
-};
-
 static const D3D11_BLEND d3d11_blend_factor[] =
 {
 	D3D11_BLEND_ZERO,
@@ -145,26 +136,26 @@ namespace Spartan
 }
 #include "D3D11/D3D11_Common.h"
 #endif 
-// DIRECTX 11
+// DirectX 11
 
 // VULKAN
 #if defined(API_GRAPHICS_VULKAN) 
 #pragma comment(lib, "vulkan-1.lib")
 #pragma comment(lib, "VkLayer_utils.lib")
 #define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan/vulkan.h>
 #pragma warning(push, 0) // Hide warnings which belong to Vulkan
+#include <vulkan/vulkan.h>
 #include <vulkan/vulkan.hpp>
 #pragma warning(pop)
 #include <optional>
 
-static const VkPolygonMode vulkan_polygon_Mode[] =
+static const VkPolygonMode vulkan_polygon_mode[] =
 {
 	VK_POLYGON_MODE_FILL,
 	VK_POLYGON_MODE_LINE
 };
 
-static const VkCullModeFlags vulkan_cull_Mode[] =
+static const VkCullModeFlags vulkan_cull_mode[] =
 {	
 	VK_CULL_MODE_NONE,
 	VK_CULL_MODE_FRONT_BIT,
@@ -238,6 +229,18 @@ static const VkBlendOp vulkan_blend_operation[] =
 	VK_BLEND_OP_MAX
 };
 
+static const VkFilter vulkan_filter[] =
+{
+	VK_FILTER_NEAREST,
+	VK_FILTER_LINEAR
+};
+
+static const VkSamplerMipmapMode vulkan_mipmap_mode[] =
+{
+	VK_SAMPLER_MIPMAP_MODE_NEAREST,
+	VK_SAMPLER_MIPMAP_MODE_LINEAR
+};
+
 static const VkDescriptorType vulkan_descriptor_type[] =
 {
 	VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -250,7 +253,7 @@ struct SwapChainSupportDetails
 	VkSurfaceCapabilitiesKHR capabilities = {};
 	std::vector<VkSurfaceFormatKHR> formats;
 	std::vector<VkPresentModeKHR> present_modes;
-	bool IsCompatible() { return !formats.empty() && !present_modes.empty(); }
+	bool IsCompatible() const { return !formats.empty() && !present_modes.empty(); }
 };
 
 struct QueueFamilyIndices
@@ -273,19 +276,23 @@ namespace Spartan
 		VkQueue queue_copy							= nullptr;
 		VkDebugUtilsMessengerEXT callback_handle	= nullptr;
 		QueueFamilyIndices indices;
-		std::vector<const char*> validation_layers = { "VK_LAYER_KHRONOS_validation" };
-		std::vector<const char*> extensions_device =
-		{
-			"VK_KHR_swapchain",
-			"VK_EXT_descriptor_indexing"
-		};
+        VkSurfaceFormatKHR surface_format;
+		
+		std::vector<const char*> extensions_device = { "VK_KHR_swapchain" };
 		#ifdef DEBUG
+            std::vector<const char*> validation_layers = { "VK_LAYER_KHRONOS_validation" };
 			std::vector<const char*> extensions_instance = { "VK_KHR_surface", "VK_KHR_win32_surface", "VK_EXT_debug_utils" };
 			bool validation_enabled = true;
 		#else
+            std::vector<const char*> validation_layers;
 			std::vector<const char*> extensions_instance = { "VK_KHR_surface", "VK_KHR_win32_surface" };
 			bool validation_enabled = false;
 		#endif
+
+		static const uint32_t max_frames_in_flight = 2;
+		static const uint32_t pool_max_constant_buffers_per_stage = 2;
+		static const uint32_t pool_max_textures_per_stage = 2;
+		static const uint32_t pool_max_samplers_per_stage = 2;
 	};
 }
 #include "Vulkan/Vulkan_Common.h"

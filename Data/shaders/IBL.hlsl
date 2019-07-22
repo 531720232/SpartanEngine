@@ -1,3 +1,24 @@
+/*
+Copyright(c) 2016-2019 Panos Karabelas
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+copies of the Software, and to permit persons to whom the Software is furnished
+to do so, subject to the following conditions :
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 static const float tex_maxMip = 11.0f;
 static const float2 environmentMipSize[12] =
 {
@@ -14,21 +35,6 @@ static const float2 environmentMipSize[12] =
 	float2(4, 2),
 	float2(2, 1),
 };
-
-float3 SampleEnvironment(SamplerState sampler_linear, Texture2D tex_environment, float2 uv, float mipLevel)
-{
-	float2 texelSize	= environmentMipSize[mipLevel];
-	float dx 			= 1.0f * texelSize.x;
-	float dy 			= 1.0f * texelSize.y;
-
-	float3 tl 			= tex_environment.SampleLevel(sampler_linear, uv + float2(-dx, -dy), mipLevel).rgb;
-	float3 tr			= tex_environment.SampleLevel(sampler_linear, uv + float2(dx, -dy), mipLevel).rgb;
-	float3 bl			= tex_environment.SampleLevel(sampler_linear, uv + float2(-dx, dy), mipLevel).rgb;
-	float3 br 			= tex_environment.SampleLevel(sampler_linear, uv + float2(dx, dy), mipLevel).rgb;
-	float3 ce 			= tex_environment.SampleLevel(sampler_linear, uv, mipLevel).rgb;
-
-	return (tl + tr + bl + br + ce) / 5.0f;
-}
 
 float3 GetSpecularDominantDir(float3 normal, float3 reflection, float roughness)
 {
@@ -54,7 +60,7 @@ float3 EnvBRDFApprox(float3 specColor, float roughness, float NdV)
     return specColor * AB.x + AB.y;
 }
 
-float3 ImageBasedLighting(Material material, float3 normal, float3 camera_to_pixel, Texture2D tex_environment, Texture2D tex_lutIBL, SamplerState samplerLinear)
+float3 ImageBasedLighting(Material material, float3 normal, float3 camera_to_pixel, Texture2D tex_environment, Texture2D tex_lutIBL, SamplerState sampler_linear, SamplerState sampler_trilinear)
 {
 	float3 reflection 	= reflect(camera_to_pixel, normal);
 	// From Sebastien Lagarde Moving Frostbite to PBR page 69
@@ -68,13 +74,13 @@ float3 ImageBasedLighting(Material material, float3 normal, float3 camera_to_pix
 	kD 			*= 1.0f - material.metallic;	
 
 	// Diffuse
-	float3 irradiance	= SampleEnvironment(samplerLinear, tex_environment, directionToSphereUV(normal), 8);
+	float3 irradiance	= tex_environment.SampleLevel(sampler_linear,  directionToSphereUV(normal), 8).rgb;
 	float3 cDiffuse		= irradiance * material.albedo;
 
 	// Specular
 	float mipLevel 			= material.roughness_alpha * tex_maxMip;
-	float3 prefilteredColor	= SampleEnvironment(samplerLinear, tex_environment, directionToSphereUV(reflection), mipLevel);
-	float2 envBRDF  		= tex_lutIBL.Sample(samplerLinear, float2(NdV, material.roughness)).xy;
+	float3 prefilteredColor	= tex_environment.SampleLevel(sampler_trilinear,  directionToSphereUV(reflection), mipLevel).rgb;
+	float2 envBRDF  		= tex_lutIBL.Sample(sampler_linear, float2(NdV, material.roughness)).xy;
 	float3 cSpecular 		= prefilteredColor * (F * envBRDF.x + envBRDF.y);
 
 	return kD * cDiffuse + cSpecular; 

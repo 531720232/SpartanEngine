@@ -75,7 +75,7 @@ namespace Spartan
 		stream->Read(&m_rotationLocal);
 		stream->Read(&m_scaleLocal);
 		stream->Read(&m_lookAt);
-		unsigned int parententity_id = 0;
+		uint32_t parententity_id = 0;
 		stream->Read(&parententity_id);
 
 		if (parententity_id != NOT_ASSIGNED_HASH)
@@ -205,16 +205,32 @@ namespace Spartan
 		return GetRotationLocal() * Vector3::Up;
 	}
 
+    Vector3 Transform::GetDown() const
+    {
+        return GetRotationLocal() * Vector3::Down;
+    }
+
 	Vector3 Transform::GetForward() const
 	{
 		return GetRotationLocal() * Vector3::Forward;
 	}
 
-	Vector3 Transform::GetRight() const
+    Vector3 Transform::GetBackward() const
+    {
+        return GetRotationLocal() * Vector3::Backward;
+    }
+
+    Vector3 Transform::GetRight() const
 	{
 		return GetRotationLocal() * Vector3::Right;
 	}
-	//================================================================================================
+
+    Vector3 Transform::GetLeft() const
+    {
+        return GetRotationLocal() * Vector3::Left;
+    }
+
+    //================================================================================================
 
 	//= HIERARCHY ====================================================================================
 	// Sets a parent for this transform
@@ -231,13 +247,13 @@ namespace Spartan
 		}
 
 		// make sure the new parent is not this transform
-		if (GetID() == new_parent->GetID())
+		if (GetId() == new_parent->GetId())
 			return;
 
 		// make sure the new parent is different from the existing parent
 		if (HasParent())
 		{
-			if (GetParent()->GetID() == new_parent->GetID())
+			if (GetParent()->GetId() == new_parent->GetId())
 				return;
 		}
 
@@ -282,14 +298,14 @@ namespace Spartan
 		if (!child)
 			return;
 
-		if (GetID() == child->GetID())
+		if (GetId() == child->GetId())
 			return;
 
 		child->SetParent(this);
 	}
 
 	// Returns a child with the given index
-	Transform* Transform::GetChildByIndex(const unsigned int index)
+	Transform* Transform::GetChildByIndex(const uint32_t index)
 	{
 		if (!HasChildren())
 		{
@@ -339,13 +355,12 @@ namespace Spartan
 				continue;
 
 			// if it's parent matches this transform
-			if (possible_child->GetParent()->GetID() == m_id)
+			if (possible_child->GetParent()->GetId() == GetId())
 			{
 				// welcome home son
 				m_children.emplace_back(possible_child);
 
-				// make the child do the same thing all over, essentialy
-				// resolving the entire hierarchy.
+				// make the child do the same thing all over, essentially resolving the entire hierarchy.
 				possible_child->AcquireChildren();
 			}
 		}
@@ -358,7 +373,7 @@ namespace Spartan
 
 		for (const auto& descendant : descendants)
 		{
-			if (descendant->GetID() == m_id)
+			if (descendant->GetId() == GetId())
 				return true;
 		}
 
@@ -384,14 +399,14 @@ namespace Spartan
 			m_cb_gbuffer_gpu->Create<CB_Gbuffer>();
 		}
 
-		auto mvp_current = m_matrix * view_projection;
+		const auto mvp_current = m_matrix * view_projection;
 	
 		// Determine if the buffer needs to update
 		auto update	= false;
-		update				= m_cb_gbuffer_cpu.model		!= m_matrix	? true : update;
-		bool new_input		= m_cb_gbuffer_cpu.mvp_current	!= mvp_current;
-		bool non_zero_delta = m_cb_gbuffer_cpu.mvp_current	!= m_cb_gbuffer_cpu.mvp_previous;
-		update				= new_input || non_zero_delta ? true : update;
+		update						= m_cb_gbuffer_cpu.model		!= m_matrix	? true : update;
+		const auto new_input		= m_cb_gbuffer_cpu.mvp_current	!= mvp_current;
+		const auto non_zero_delta	= m_cb_gbuffer_cpu.mvp_current	!= m_cb_gbuffer_cpu.mvp_previous;
+		update = new_input || non_zero_delta ? true : update;
 		if (!update)
 			return;
 
@@ -407,10 +422,10 @@ namespace Spartan
 		m_wvp_previous = mvp_current;
 	}
 
-	void Transform::UpdateConstantBufferLight(const shared_ptr<RHI_Device>& rhi_device, const Matrix& view_projection, unsigned int cascade_index)
+	void Transform::UpdateConstantBufferLight(const shared_ptr<RHI_Device>& rhi_device, const Matrix& view_projection, const uint32_t cascade_index)
 	{
 		// Has to match GBuffer.hlsl
-		if (cascade_index >=  static_cast<unsigned int>(m_light_cascades.size()))
+		if (cascade_index >=  static_cast<uint32_t>(m_light_cascades.size()))
 		{
 			LightCascade cb_light;
 			cb_light.buffer = make_shared<RHI_ConstantBuffer>(rhi_device);
@@ -425,7 +440,7 @@ namespace Spartan
 			return;
 
 		// Update buffer
-		Matrix& data = *static_cast<Matrix*>(cb_light.buffer->Map());
+		auto& data = *static_cast<Matrix*>(cb_light.buffer->Map());
 		data = mvp;
 		cb_light.buffer->Unmap();
 	}
@@ -452,7 +467,7 @@ namespace Spartan
 		UpdateTransform();
 
 		// make the parent search for children,
-		// that's indirect way of making tha parent "forget"
+		// that's indirect way of making the parent "forget"
 		// about this child, since it won't be able to find it
 		if (temp_ref)
 		{

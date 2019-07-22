@@ -22,7 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ==================================
 #include "Widget_Properties.h"
 #include "Widget_World.h"
-#include "../DragDrop.h"
+#include "../ImGui_Extension.h"
 #include "../ButtonColorPicker.h"
 #include "../../ImGui/Source/imgui_stdlib.h"
 #include "Rendering/Deferred/ShaderVariation.h"
@@ -43,12 +43,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "RHI/RHI_Texture2D.h"
 //=============================================
 
-//= NAMESPACES ==========
+//= NAMESPACES =========
 using namespace std;
 using namespace Spartan;
 using namespace Math;
-using namespace Helper;
-//=======================
+//======================
 
 weak_ptr<Entity> Widget_Properties::m_inspected_entity;
 weak_ptr<Material> Widget_Properties::m_inspected_material;
@@ -79,7 +78,7 @@ namespace ComponentProperty
 					{
 						if (component)
 						{
-							entity->RemoveComponentById(component->GetID());
+							entity->RemoveComponentById(component->GetId());
 						}
 					}
 				}
@@ -142,17 +141,18 @@ namespace ComponentProperty
 
 Widget_Properties::Widget_Properties(Context* context) : Widget(context)
 {
-	m_title					= "Properties";
+	m_title	    = "Properties";
+    m_size.x    = 500; // min width
+
 	m_colorPicker_light		= make_unique<ButtonColorPicker>("Light Color Picker");
 	m_colorPicker_material	= make_unique<ButtonColorPicker>("Material Color Picker");
 	m_colorPicker_camera	= make_unique<ButtonColorPicker>("Camera Color Picker");
 
 	_Widget_Properties::resource_cache	= m_context->GetSubsystem<ResourceCache>().get();
-	_Widget_Properties::scene			= m_context->GetSubsystem<World>().get();
-	m_xMin								= 500; // min width
+	_Widget_Properties::scene			= m_context->GetSubsystem<World>().get();  
 }
 
-void Widget_Properties::Tick(float delta_time)
+void Widget_Properties::Tick()
 {
 	ImGui::PushItemWidth(ComponentProperty::g_max_width);
 
@@ -160,17 +160,17 @@ void Widget_Properties::Tick(float delta_time)
 	{
 		auto entity_ptr = m_inspected_entity.lock().get();
 
-		auto transform		= entity_ptr->GetComponent<Transform>();
-		auto light			= entity_ptr->GetComponent<Light>();
-		auto camera			= entity_ptr->GetComponent<Camera>();
-		auto audio_source	= entity_ptr->GetComponent<AudioSource>();
-		auto audio_listener	= entity_ptr->GetComponent<AudioListener>();
-		auto renderable		= entity_ptr->GetComponent<Renderable>();
-		auto material		= renderable ? renderable->MaterialPtr() : nullptr;
-		auto rigid_body		= entity_ptr->GetComponent<RigidBody>();
-		auto collider		= entity_ptr->GetComponent<Collider>();
-		auto constraint		= entity_ptr->GetComponent<Constraint>();
-		auto scripts		= entity_ptr->GetComponents<Script>();
+		auto& transform		    = entity_ptr->GetComponent<Transform>();
+		auto& light			    = entity_ptr->GetComponent<Light>();
+		auto& camera			= entity_ptr->GetComponent<Camera>();
+		auto& audio_source	    = entity_ptr->GetComponent<AudioSource>();
+		auto& audio_listener	= entity_ptr->GetComponent<AudioListener>();
+		auto& renderable		= entity_ptr->GetComponent<Renderable>();
+		auto& material		    = renderable ? renderable->GetMaterial() : shared_ptr<Material>();
+		auto& rigid_body		= entity_ptr->GetComponent<RigidBody>();
+		auto& collider		    = entity_ptr->GetComponent<Collider>();
+		auto& constraint		= entity_ptr->GetComponent<Constraint>();
+		auto& scripts		    = entity_ptr->GetComponents<Script>();
 
 		ShowTransform(transform);
 		ShowLight(light);
@@ -229,7 +229,7 @@ void Widget_Properties::ShowTransform(shared_ptr<Transform>& transform) const
 {
 	if (ComponentProperty::Begin("Transform", Icon_Component_Transform, transform, true, false))
 	{
-		const auto is_playing = Engine::EngineMode_IsSet(Engine_Game);
+		const auto is_playing = m_context->m_engine->EngineMode_IsSet(Engine_Game);
 
 		//= REFLECT ======================================================================================================
 		auto position	= transform->GetPositionLocal();
@@ -255,22 +255,22 @@ void Widget_Properties::ShowTransform(shared_ptr<Transform>& transform) const
 
 		// Position
 		ImGui::Text("Position");
-		ImGui::SameLine(start_column);	show_float("TraPosX", "X", &position.x);
-		ImGui::SameLine();				show_float("TraPosY", "Y", &position.y);
-		ImGui::SameLine();				show_float("TraPosZ", "Z", &position.z);
+		ImGui::SameLine(start_column);	show_float("##trans_pos_x", "X", &position.x);
+		ImGui::SameLine();				show_float("##trans_pos_y", "Y", &position.y);
+		ImGui::SameLine();				show_float("##trans_pos_z", "Z", &position.z);
 
 		// Rotation
 		ImGui::Text("Rotation");
-		ImGui::SameLine(start_column);	show_float("TraRotX", "X", &rotation.x);
-		ImGui::SameLine();				show_float("TraRotY", "Y", &rotation.y);
-		ImGui::SameLine();				show_float("TraRotZ", "Z", &rotation.z);
+        ImGui::SameLine(start_column);	show_float("##trans_rot_x", "X", &rotation.x);
+        ImGui::SameLine();				show_float("##trans_rot_y", "Y", &rotation.y);
+        ImGui::SameLine();				show_float("##trans_rot_z", "Z", &rotation.z);
 
 		// Scale
 		ImGui::Text("Scale");
-		ImGui::SameLine(start_column);	show_float("TraScaX", "X", &scale.x);
-		ImGui::SameLine();				show_float("TraScaY", "Y", &scale.y);
-		ImGui::SameLine();				show_float("TraScaZ", "Z", &scale.z);
-
+        ImGui::SameLine(start_column);	show_float("##trans_sca_x", "X", &scale.x);
+        ImGui::SameLine();				show_float("##trans_sca_y", "Y", &scale.y);
+        ImGui::SameLine();				show_float("##trans_sca_z", "Z", &scale.z);
+        
 		//= MAP ===================================================================
 		if (!is_playing)
 		{
@@ -393,11 +393,11 @@ void Widget_Properties::ShowRenderable(shared_ptr<Renderable>& renderable) const
 	if (ComponentProperty::Begin("Renderable", Icon_Component_Renderable, renderable))
 	{
 		//= REFLECT ====================================================================
-		auto mesh_name			= renderable->GeometryName();
-		auto material			= renderable->MaterialPtr();
-		auto material_name		= material ? material->GetResourceName() : NOT_ASSIGNED;
+		auto& mesh_name			= renderable->GeometryName();
+		auto& material			= renderable->GetMaterial();
+		auto& material_name		= material ? material->GetResourceName() : NOT_ASSIGNED;
 		auto cast_shadows		= renderable->GetCastShadows();
-		auto receive_shadows	=	 renderable->GetReceiveShadows();
+		auto receive_shadows	= renderable->GetReceiveShadows();
 		//==============================================================================
 
 		ImGui::Text("Mesh");
@@ -638,11 +638,11 @@ void Widget_Properties::ShowConstraint(shared_ptr<Constraint>& constraint) const
 		ImGui::PushID("##OtherBodyName");
 		ImGui::PushItemWidth(200.0f);
 		ImGui::InputText("", &other_body_name, ImGuiInputTextFlags_ReadOnly);
-		if (auto payload = DragDrop::Get().GetPayload(DragPayload_entity))
+		if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_entity))
 		{
 			const auto entity_id	= get<unsigned int>(payload->data);
 			other_body				= _Widget_Properties::scene->EntityGetById(entity_id);
-			other_body_dirty			= true;
+			other_body_dirty		= true;
 		}
 		ImGui::PopItemWidth();
 		ImGui::PopID();
@@ -704,25 +704,21 @@ void Widget_Properties::ShowMaterial(shared_ptr<Material>& material) const
 	if (ComponentProperty::Begin("Material", Icon_Component_Material, nullptr, false))
 	{
 		//= REFLECT =================================================
-		auto roughness	= material->GetRoughnessMultiplier();
-		auto metallic	= material->GetMetallicMultiplier();
-		auto normal		= material->GetNormalMultiplier();
-		auto height		= material->GetHeightMultiplier();
-		auto tiling		= material->GetTiling();
-		auto offset		= material->GetOffset();
+		auto tiling	= material->GetTiling();
+		auto offset	= material->GetOffset();
 		m_colorPicker_material->SetColor(material->GetColorAlbedo());
 		//===========================================================
 
 		static const auto material_text_size = ImVec2(80, 80);
 
-		const auto tex_albedo		= material->GetTextureSlotByType(TextureType_Albedo).ptr.get();
-		const auto tex_roughness	= material->GetTextureSlotByType(TextureType_Roughness).ptr.get();
-		const auto tex_metallic		= material->GetTextureSlotByType(TextureType_Metallic).ptr.get();
-		const auto tex_normal		= material->GetTextureSlotByType(TextureType_Normal).ptr.get();
-		const auto tex_height		= material->GetTextureSlotByType(TextureType_Height).ptr.get();
-		const auto tex_occlusion	= material->GetTextureSlotByType(TextureType_Occlusion).ptr.get();
-		const auto tex_emission		= material->GetTextureSlotByType(TextureType_Emission).ptr.get();
-		const auto tex_mask			= material->GetTextureSlotByType(TextureType_Mask).ptr.get();
+		const auto tex_albedo		= material->GetTexture(TextureType_Albedo).get();
+		const auto tex_roughness	= material->GetTexture(TextureType_Roughness).get();
+		const auto tex_metallic		= material->GetTexture(TextureType_Metallic).get();
+		const auto tex_normal		= material->GetTexture(TextureType_Normal).get();
+		const auto tex_height		= material->GetTexture(TextureType_Height).get();
+		const auto tex_occlusion	= material->GetTexture(TextureType_Occlusion).get();
+		const auto tex_emission		= material->GetTexture(TextureType_Emission).get();
+		const auto tex_mask			= material->GetTexture(TextureType_Mask).get();
 
 		// Name
 		ImGui::Text("Name");
@@ -730,21 +726,21 @@ void Widget_Properties::ShowMaterial(shared_ptr<Material>& material) const
 
 		if (material->IsEditable())
 		{
-			const auto display_texture_slot = [&material](RHI_Texture* texture, const char* texture_name, TextureType textureType)
+			const auto display_texture_slot = [&material](RHI_Texture* texture, const char* texture_name, const TextureType textureType)
 			{
 				// Texture
 				ImGui::Text(texture_name);
-				ImGui::SameLine(ComponentProperty::g_column); ImGui::Image(
-					texture ? texture->GetResource_Texture() : nullptr,
+				ImGui::SameLine(ComponentProperty::g_column); 
+				ImGuiEx::Image
+				(
+					texture,
 					material_text_size,
-					ImVec2(0, 0),
-					ImVec2(1, 1),
 					ImColor(255, 255, 255, 255),
 					ImColor(255, 255, 255, 128)
 				);
 
 				// Drop target
-				if (auto payload = DragDrop::Get().GetPayload(DragPayload_Texture))
+				if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_Texture))
 				{
 					try
 					{
@@ -774,23 +770,19 @@ void Widget_Properties::ShowMaterial(shared_ptr<Material>& material) const
 
 			// Roughness
 			display_texture_slot(tex_roughness, "Roughness", TextureType_Roughness);
-			roughness = material->GetRoughnessMultiplier();
-			ImGui::SameLine(); ImGui::DragFloat("##matRoughness", &roughness, 0.003f, 0.0f, 1.0f);
+			ImGui::SameLine(); ImGui::DragFloat("##matRoughness", &material->GetMultiplier(TextureType_Roughness), 0.004f, 0.0f, 1.0f);
 
 			// Metallic
 			display_texture_slot(tex_metallic, "Metallic", TextureType_Metallic);
-			metallic = material->GetMetallicMultiplier();
-			ImGui::SameLine(); ImGui::DragFloat("##matMetallic", &metallic, 0.003f, 0.0f, 1.0f);
+			ImGui::SameLine(); ImGui::DragFloat("##matMetallic", &material->GetMultiplier(TextureType_Metallic), 0.004f, 0.0f, 1.0f);
 
 			// Normal
 			display_texture_slot(tex_normal, "Normal", TextureType_Normal);
-			normal = material->GetNormalMultiplier();
-			ImGui::SameLine(); ImGui::DragFloat("##matNormal", &normal, 0.003f, 0.0f, 1.0f);
+			ImGui::SameLine(); ImGui::DragFloat("##matNormal", &material->GetMultiplier(TextureType_Normal), 0.004f, 0.0f, 1.0f);
 
 			// Height
 			display_texture_slot(tex_height, "Height", TextureType_Height);
-			height = material->GetHeightMultiplier();
-			ImGui::SameLine(); ImGui::DragFloat("##matHeight", &height, 0.003f, 0.0f, 1.0f);
+			ImGui::SameLine(); ImGui::DragFloat("##matHeight", &material->GetMultiplier(TextureType_Height), 0.004f, 0.0f, 1.0f);
 
 			// Occlusion
 			display_texture_slot(tex_occlusion, "Occlusion", TextureType_Occlusion);
@@ -813,10 +805,6 @@ void Widget_Properties::ShowMaterial(shared_ptr<Material>& material) const
 		}
 
 		//= MAP =============================================================================================================================
-		if (roughness != material->GetRoughnessMultiplier())					material->SetRoughnessMultiplier(roughness);
-		if (metallic != material->GetMetallicMultiplier())						material->SetMetallicMultiplier(metallic);
-		if (normal != material->GetNormalMultiplier())							material->SetNormalMultiplier(normal);
-		if (height != material->GetHeightMultiplier())							material->SetHeightMultiplier(height);
 		if (tiling != material->GetTiling())									material->SetTiling(tiling);
 		if (offset != material->GetOffset())									material->SetOffset(offset);
 		if (m_colorPicker_material->GetColor() != material->GetColorAlbedo())	material->SetColorAlbedo(m_colorPicker_material->GetColor());
@@ -911,7 +899,7 @@ void Widget_Properties::ShowAudioSource(shared_ptr<AudioSource>& audio_source) c
 		ImGui::SameLine(ComponentProperty::g_column); ImGui::PushItemWidth(250.0f);
 		ImGui::InputText("##audioSourceAudioClip", &audio_clip_name, ImGuiInputTextFlags_ReadOnly);
 		ImGui::PopItemWidth();
-		if (auto payload = DragDrop::Get().GetPayload(DragPayload_Audio))
+		if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_Audio))
 		{
 			audio_clip_name			= FileSystem::GetFileNameFromFilePath(get<const char*>(payload->data));
 			const auto audio_clip	= _Widget_Properties::resource_cache->Load<AudioClip>(get<const char*>(payload->data));
@@ -1087,7 +1075,7 @@ void Widget_Properties::ComponentContextMenu_Add() const
 
 void Widget_Properties::Drop_AutoAddComponents() const
 {
-	if (auto payload = DragDrop::Get().GetPayload(DragPayload_Script))
+	if (auto payload = ImGuiEx::ReceiveDragPayload(ImGuiEx::DragPayload_Script))
 	{
 		if (auto script_component = m_inspected_entity.lock()->AddComponent<Script>())
 		{

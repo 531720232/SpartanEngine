@@ -19,8 +19,6 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#pragma once
-
 //= IMPLEMENTATION ===============
 #include "../RHI_Implementation.h"
 #ifdef API_GRAPHICS_D3D11
@@ -30,16 +28,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../RHI_Pipeline.h"
 //==========================
 
+//= NAMESPACES =====
+using namespace std;
+//==================
+
 namespace Spartan
 {
+	RHI_Pipeline::RHI_Pipeline(const shared_ptr<RHI_Device>& rhi_device, const RHI_PipelineState& pipeline_state)
+	{
+		m_rhi_device	= rhi_device;
+		m_state			= &pipeline_state;
+	}
+
 	RHI_Pipeline::~RHI_Pipeline()
 	{
 
 	}
 
-	bool RHI_Pipeline::Create()
+	void RHI_Pipeline::UpdateDescriptorSets(RHI_Texture* texture /*= nullptr*/)
 	{
-		return true;
+
 	}
 }
 #endif

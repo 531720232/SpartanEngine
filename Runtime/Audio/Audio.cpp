@@ -41,11 +41,7 @@ namespace Spartan
 {
 	Audio::Audio(Context* context) : ISubsystem(context)
 	{
-		m_system_fmod		= nullptr;
-		m_max_channels		= 32;
-		m_distance_entity	= 1.0f;
-		m_listener			= nullptr;
-		m_profiler			= m_context->GetSubsystem<Profiler>().get();
+		m_profiler = m_context->GetSubsystem<Profiler>().get();
 
 		// Create FMOD instance
 		m_result_fmod = System_Create(&m_system_fmod);
@@ -56,7 +52,7 @@ namespace Spartan
 		}
 
 		// Check FMOD version
-		unsigned int version;
+		uint32_t version;
 		m_result_fmod = m_system_fmod->getVersion(&version);
 		if (m_result_fmod != FMOD_OK)
 		{
@@ -103,7 +99,7 @@ namespace Spartan
 		const auto major	= ss.str().erase(1, 4);
 		const auto minor	= ss.str().erase(0, 1).erase(2, 2);
 		const auto rev		= ss.str().erase(0, 3);
-		Settings::Get().m_versionFMOD = major + "." + minor + "." + rev;
+        m_context->GetSubsystem<Settings>()->m_versionFMOD = major + "." + minor + "." + rev;
 
 		// Subscribe to events
 		SUBSCRIBE_TO_EVENT(Event_World_Unload, [this](Variant) { m_listener = nullptr; });
@@ -133,10 +129,10 @@ namespace Spartan
 		}
 	}
 
-	void Audio::Tick()
+	void Audio::Tick(float delta_time)
 	{
 		// Don't play audio if the engine is not in game mode
-		if (!Engine::EngineMode_IsSet(Engine_Game))
+		if (!m_context->m_engine->EngineMode_IsSet(Engine_Game))
 			return;
 
 		if (!m_initialized)

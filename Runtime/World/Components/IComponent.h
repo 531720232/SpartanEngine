@@ -21,14 +21,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-//= INCLUDES =====================
+//= INCLUDES =========================
 #include <memory>
 #include <string>
 #include <any>
 #include <vector>
 #include <functional>
 #include "../../Core/EngineDefs.h"
-//================================
+#include "../../Core/Spartan_Object.h"
+//====================================
 
 namespace Spartan
 {
@@ -37,7 +38,7 @@ namespace Spartan
 	class Context;
 	class FileStream;
 
-	enum ComponentType : unsigned int
+	enum ComponentType : uint32_t
 	{
 		ComponentType_AudioListener,
 		ComponentType_AudioSource,
@@ -59,7 +60,7 @@ namespace Spartan
 		std::function<void(std::any)> setter;
 	};
 
-	class SPARTAN_CLASS IComponent
+	class SPARTAN_CLASS IComponent : public Spartan_Object
 	{
 	public:
 		IComponent(Context* context, Entity* entity, Transform* transform);
@@ -78,7 +79,7 @@ namespace Spartan
 		virtual void OnRemove() {}
 
 		// Runs every frame
-		virtual void OnTick() {}
+		virtual void OnTick(float delta_time) {}
 
 		// Runs when the entity is being saved
 		virtual void Serialize(FileStream* stream) {}
@@ -92,22 +93,20 @@ namespace Spartan
 		//==========================================
 
 		//= PROPERTIES ==========================================================================
-		Entity*						GetEntity_PtrRaw() const	{ return m_entity; }	
-		std::weak_ptr<Entity>		GetEntity_PtrWeak()			{ return GetEntity_PtrShared(); }
-		std::shared_ptr<Entity>		GetEntity_PtrShared() const;
+		Entity*						GetEntity_PtrRaw()		const{ return m_entity; }	
+		std::weak_ptr<Entity>		GetEntity_PtrWeak()		const { return GetEntity_PtrShared(); }
+		std::shared_ptr<Entity>		GetEntity_PtrShared()	const;
 		const std::string& GetEntityName() const;
 
 		Transform* GetTransform() const			{ return m_transform; }
 		Context* GetContext() const				{ return m_context; }
-		unsigned int GetID() const				{ return m_id; }
-		void SetId(const unsigned int id)		{ m_id = id; }
 		constexpr ComponentType GetType() const	{ return m_type; }
 		void SetType(const ComponentType type)	{ m_type = type; }
 
 		const auto& GetAttributes() const { return m_attributes; }
 		void SetAttributes(const std::vector<Attribute>& attributes)
 		{ 
-			for (unsigned int i = 0; i < static_cast<unsigned int>(m_attributes.size()); i++)
+			for (uint32_t i = 0; i < static_cast<uint32_t>(m_attributes.size()); i++)
 			{
 				m_attributes[i].setter(attributes[i].getter());
 			}
@@ -137,17 +136,15 @@ namespace Spartan
 		}
 
 		// The type of the component
-		ComponentType m_type		= ComponentType_Unknown;
-		// The id of the component
-		unsigned int m_id			= 0;
+		ComponentType m_type	= ComponentType_Unknown;
 		// The state of the component
-		bool m_enabled				= false;
+		bool m_enabled			= false;
 		// The owner of the component
-		Entity* m_entity			= nullptr;
+		Entity* m_entity		= nullptr;
 		// The transform of the component (always exists)
-		Transform* m_transform		= nullptr;
+		Transform* m_transform	= nullptr;
 		// The context of the engine
-		Context* m_context			= nullptr;
+		Context* m_context		= nullptr;
 
 	private:
 		// The attributes of the component

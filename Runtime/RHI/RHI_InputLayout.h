@@ -23,25 +23,114 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //= INCLUDES ==================
 #include <memory>
+#include <vector>
 #include "RHI_Definition.h"
+#include "RHI_Vertex.h"
 #include "../Core/EngineDefs.h"
 //=============================
 
 namespace Spartan
 {
+	struct VertexAttribute 
+	{
+		VertexAttribute(const std::string& name, const uint32_t location, const uint32_t binding, const RHI_Format format, const uint32_t offset)
+		{
+			this->name		= name;
+			this->location	= location;
+			this->binding	= binding;
+			this->format	= format;
+			this->offset	= offset;
+		}
+
+		std::string name;
+		uint32_t location;
+		uint32_t binding;
+		RHI_Format format;
+		uint32_t offset;
+	};
+
 	class SPARTAN_CLASS RHI_InputLayout
 	{
 	public:
-		RHI_InputLayout(const std::shared_ptr<RHI_Device>& rhi_device);
+		RHI_InputLayout(const std::shared_ptr<RHI_Device>& rhi_device)
+		{
+			m_rhi_device = rhi_device;
+		}
+
 		~RHI_InputLayout();
 
-		bool Create(void* vertex_shader_blob, RHI_Vertex_Attribute_Type vertex_attributes);
-		auto GetVertexAttributes() const	{ return m_vertex_attributes; }
-		auto GetBuffer() const				{ return m_buffer; }
+		template<typename T>
+		bool Create(void* vertex_shader_blob = nullptr)
+		{
+			uint32_t binding = 0;
 
-	private:		
-		RHI_Vertex_Attribute_Type m_vertex_attributes = Vertex_Attribute_None;
-		void* m_buffer = nullptr;
+			if (RHI_Vertex_Type_To_Enum<T>() == RHI_Vertex_Type_Position)
+			{
+				m_vertex_attributes =
+				{
+					{ "POSITION", 0, binding, Format_R32G32B32_FLOAT,	offsetof(RHI_Vertex_Pos, pos) }
+				};
+			}
+
+			if (RHI_Vertex_Type_To_Enum<T>() == RHI_Vertex_Type_PositionTexture)
+			{
+				m_vertex_attributes =
+				{
+					{ "POSITION", 0, binding, Format_R32G32B32_FLOAT,	offsetof(RHI_Vertex_PosTex, pos) },
+					{ "TEXCOORD", 1, binding, Format_R32G32_FLOAT,		offsetof(RHI_Vertex_PosTex, tex) }
+				};
+			}
+
+			if (RHI_Vertex_Type_To_Enum<T>() == RHI_Vertex_Type_PositionColor)
+			{
+				m_vertex_attributes =
+				{
+					{ "POSITION",	0, binding, Format_R32G32B32_FLOAT,		offsetof(RHI_Vertex_PosCol, pos) },
+					{ "COLOR",		1, binding, Format_R32G32B32A32_FLOAT,	offsetof(RHI_Vertex_PosCol, col) }
+				};
+			}
+
+			if (RHI_Vertex_Type_To_Enum<T>() == RHI_Vertex_Type_Position2dTextureColor8)
+			{
+				m_vertex_attributes =
+				{
+					{ "POSITION",	0, binding, Format_R32G32_FLOAT,	offsetof(RHI_Vertex_Pos2dTexCol8, pos) },
+					{ "TEXCOORD",	1, binding, Format_R32G32_FLOAT,	offsetof(RHI_Vertex_Pos2dTexCol8, tex) },
+					{ "COLOR",		2, binding, Format_R8G8B8A8_UNORM,	offsetof(RHI_Vertex_Pos2dTexCol8, col) }
+				};
+			}
+
+			if (RHI_Vertex_Type_To_Enum<T>() == RHI_Vertex_Type_PositionTextureNormalTangent)
+			{
+				m_vertex_attributes =
+				{
+					{ "POSITION",	0, binding, Format_R32G32B32_FLOAT,	offsetof(RHI_Vertex_PosTexNorTan, pos) },
+					{ "TEXCOORD",	1, binding, Format_R32G32_FLOAT,	offsetof(RHI_Vertex_PosTexNorTan, tex) },
+					{ "NORMAL",		2, binding, Format_R32G32B32_FLOAT,	offsetof(RHI_Vertex_PosTexNorTan, nor) },
+					{ "TANGENT",	3, binding, Format_R32G32B32_FLOAT,	offsetof(RHI_Vertex_PosTexNorTan, tan) }
+				};
+			}
+
+			if (vertex_shader_blob && !m_vertex_attributes.empty())
+			{
+				return _CreateResource(vertex_shader_blob);
+			}
+			return true;
+		}
+
+		auto GetVertexType()					const { return m_vertex_type; }
+		const auto& GetAttributeDescriptions()	const { return m_vertex_attributes; }
+		auto GetResource()						const { return m_resource; }
+
+		bool operator==(const RHI_InputLayout& rhs) const { return m_vertex_type == rhs.GetVertexType(); }
+
+	private:
+		RHI_Vertex_Type m_vertex_type;
+
+		// API
+		bool _CreateResource(void* vertex_shader_blob);
 		std::shared_ptr<RHI_Device> m_rhi_device;
+		void* m_resource = nullptr;
+		std::vector<VertexAttribute> m_vertex_attributes;
 	};
 }

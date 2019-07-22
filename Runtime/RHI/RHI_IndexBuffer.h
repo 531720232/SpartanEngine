@@ -21,15 +21,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #pragma once
 
-//= INCLUDES ==============
-#include "RHI_Definition.h"
-#include "RHI_Object.h"
+//= INCLUDES ==================
 #include <vector>
-//=========================
+#include "../Core/Spartan_Object.h"
+//=============================
 
 namespace Spartan
 {
-	class RHI_IndexBuffer : public RHI_Object
+	class RHI_IndexBuffer : public Spartan_Object
 	{
 	public:
 		RHI_IndexBuffer(const std::shared_ptr<RHI_Device>& rhi_device)
@@ -43,20 +42,30 @@ namespace Spartan
 		bool Create(const std::vector<T>& indices)
 		{
 			m_is_dynamic	= false;
-			m_stride		= sizeof(T);
-			m_index_count	= static_cast<unsigned int>(indices.size());
-			m_size			= m_stride * m_index_count;
-			return Create(indices.data());
+			m_stride        = sizeof(T);
+			m_index_count	= static_cast<uint32_t>(indices.size());
+			m_size          = static_cast<uint64_t>(m_stride * m_index_count);
+			return _Create(static_cast<const void*>(indices.data()));
 		}
 
 		template<typename T>
-		bool CreateDynamic(unsigned int index_count)
+		bool Create(const T* indices, const uint32_t index_count)
+		{
+			m_is_dynamic	= false;
+			m_stride        = sizeof(T);
+			m_index_count	= index_count;
+			m_size          = static_cast<uint64_t>(m_stride * m_index_count);
+			return _Create(static_cast<const void*>(indices));
+		}
+
+		template<typename T>
+		bool CreateDynamic(const uint32_t index_count)
 		{
 			m_is_dynamic	= true;
-			m_stride		= sizeof(T);
+			m_stride        = sizeof(T);
 			m_index_count	= index_count;
-			m_size			= m_stride * m_index_count;
-			return Create(nullptr);
+			m_size          = static_cast<uint64_t>(m_stride * m_index_count);
+			return _Create(nullptr);
 		}
 
 		void* Map() const;
@@ -69,13 +78,14 @@ namespace Spartan
 		auto Is32Bit()			const { return sizeof(uint32_t) == m_stride; }
 
 	protected:
-		bool Create(const void* indices);
+		bool _Create(const void* indices);
 
 		bool m_is_dynamic			= false;
-		unsigned int m_stride		= 0;
-		unsigned int m_index_count	= 0;
+		uint32_t m_stride		= 0;
+		uint32_t m_index_count	= 0;
 		std::shared_ptr<RHI_Device> m_rhi_device;
 
+		// API
 		void* m_buffer			= nullptr;
 		void* m_buffer_memory	= nullptr;		
 	};

@@ -54,14 +54,20 @@ namespace Spartan
 			return;
 		}
 
-		if (!rhi_device->GetContext()->device)
+		if (!rhi_device->GetContextRhi()->device)
 		{
 			LOG_ERROR_INVALID_INTERNALS();
 			return;
 		}
 
-		// Save properties
-		m_blend_enabled = blend_enabled;
+		// Save parameters
+		m_blend_enabled			= blend_enabled;
+		m_source_blend			= source_blend;
+		m_dest_blend			= dest_blend;
+		m_blend_op				= blend_op;
+		m_source_blend_alpha	= source_blend_alpha;
+		m_dest_blend_alpha		= dest_blend_alpha;
+		m_blend_op_alpha		= blend_op_alpha;
 
 		// Create description
 		D3D11_BLEND_DESC desc;
@@ -82,7 +88,7 @@ namespace Spartan
 
 		// Create blend state
 		auto blend_state	= static_cast<ID3D11BlendState*>(m_buffer);
-		const auto result	= rhi_device->GetContext()->device->CreateBlendState(&desc, &blend_state);
+		const auto result	= rhi_device->GetContextRhi()->device->CreateBlendState(&desc, &blend_state);
 
 		// Handle result
 		if (SUCCEEDED(result))

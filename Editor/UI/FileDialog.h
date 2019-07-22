@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES =====================
 #include <memory>
 #include "IconProvider.h"
-#include "EditorHelper.h"
+#include "ImGui_Extension.h"
 #include "FileSystem/FileSystem.h"
 //================================
 
@@ -55,23 +55,23 @@ public:
 	{
 		m_path			= path;
 		m_thumbnail		= thumbnail;
-		m_id			= GENERATE_GUID;
+		m_id			= Spartan::Spartan_Object::GenerateId();
 		m_isDirectory	= Spartan::FileSystem::IsDirectory(path);
 		m_label			= Spartan::FileSystem::GetFileNameFromFilePath(path);
 	}
 
-	const std::string& GetPath() const		{ return m_path; }
-	const std::string& GetLabel() const		{ return m_label; }
-	unsigned int GetId() const				{ return m_id; }
-	void* GetShaderResource() const			{ return SHADER_RESOURCE_BY_THUMBNAIL(m_thumbnail); }
-	bool IsDirectory() const				{ return m_isDirectory; }
-	float GetTimeSinceLastClickMs() const	{ return static_cast<float>(m_time_since_last_click.count()); }
+	const auto& GetPath()           const { return m_path; }
+	const auto& GetLabel()          const { return m_label; }
+	auto GetId()                    const { return m_id; }
+	auto GetTexture()               const { return IconProvider::Get().GetTextureByThumbnail(m_thumbnail); }
+	auto IsDirectory()              const { return m_isDirectory; }
+	auto GetTimeSinceLastClickMs()  const { return static_cast<float>(m_time_since_last_click.count()); }
 
 	void Clicked()	
 	{
 		const auto now			= std::chrono::high_resolution_clock::now();
 		m_time_since_last_click	= now - m_last_click_time;
-		m_last_click_time			= now;
+		m_last_click_time		= now;
 	}
 	
 private:
@@ -90,11 +90,11 @@ public:
 	FileDialog(Spartan::Context* context, bool standalone_window, FileDialog_Type type, FileDialog_Operation operation, FileDialog_Filter filter);
 
 	// Type & Filter
-	FileDialog_Type GetType() const		{ return m_type; }
-	FileDialog_Filter GetFilter() const { return m_filter; }
+	auto GetType()      const { return m_type; }
+    auto GetFilter()    const { return m_filter; }
 
 	// Operation
-	FileDialog_Operation GetOperation() const { return m_operation; }
+    auto GetOperation() const { return m_operation; }
 	void SetOperation(FileDialog_Operation operation);
 
 	// Shows the dialog and returns true if a a selection was made
@@ -113,9 +113,9 @@ private:
 	void ItemClick(FileDialogItem* item) const;
 	void ItemContextMenu(FileDialogItem* item);
 
-	// Misc	
-	bool DialogSetCurrentPath(const std::string& path);
-	bool DialogUpdateFromDirectory(const std::string& path);
+	// Misc
+    bool DialogSetCurrentPath(const std::string& path);
+    bool DialogUpdateFromDirectory(const std::string& path);
 	void EmptyAreaContextMenu();
 
 	FileDialog_Type m_type;
@@ -126,11 +126,10 @@ private:
 	std::string m_current_directory;
 	std::string m_input_box;
 	std::vector<FileDialogItem> m_items;
+    Spartan::Math::Vector2 m_item_size;
 	bool m_is_window;
-	float m_item_size;
 	bool m_selection_made;
-	bool m_isDirty;
-	bool m_wasVisible{};
+	bool m_is_dirty;
 	Spartan::Context* m_context;
 
 	// Callbacks
