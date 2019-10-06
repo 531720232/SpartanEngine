@@ -22,12 +22,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ======================
 #include "ResourceCache.h"
 #include "ProgressReport.h"
+#include "Import/ImageImporter.h"
+#include "Import/ModelImporter.h"
+#include "Import/FontImporter.h"
 #include "../World/World.h"
 #include "../World/Entity.h"
 #include "../IO/FileStream.h"
-#include "../Core/EventSystem.h"
 #include "../RHI/RHI_Texture2D.h"
 #include "../RHI/RHI_TextureCube.h"
+#include "../Audio/AudioClip.h"
+#include "../Rendering/Model.h"
 //=================================
 
 //= NAMESPACES ================
@@ -42,7 +46,7 @@ namespace Spartan
 		string data_dir = GetDataDirectory();
 
 		// Add engine standard resource directories
-		AddDataDirectory(Asset_Cubemaps,		data_dir + "cubemaps//");
+		AddDataDirectory(Asset_Cubemaps,		data_dir + "environment//");
 		AddDataDirectory(Asset_Fonts,			data_dir + "fonts//");
 		AddDataDirectory(Asset_Icons,			data_dir + "icons//");
 		AddDataDirectory(Asset_Scripts,			data_dir + "scripts//");
@@ -77,7 +81,7 @@ namespace Spartan
 
 	bool ResourceCache::IsCached(const string& resource_name, const Resource_Type resource_type /*= Resource_Unknown*/)
 	{
-		if (resource_name == NOT_ASSIGNED)
+		if (resource_name.empty())
 		{
 			LOG_ERROR_INVALID_PARAMETER();
 			return false;
@@ -100,7 +104,8 @@ namespace Spartan
 				return resource;
 		}
 
-		return m_empty_resource;
+        static shared_ptr<IResource> empty;
+		return empty;
 	}
 
 	vector<shared_ptr<IResource>> ResourceCache::GetByType(const Resource_Type type /*= Resource_Unknown*/)
@@ -177,15 +182,15 @@ namespace Spartan
 		{
 			for (const auto& resource : resource_group.second)
 			{
-				if (!resource->HasFilePath())
+				if (!resource->HasFilePathNative())
 					continue;
 
 				// Save file path
-				file->Write(resource->GetResourceFilePath());
+				file->Write(resource->GetResourceFilePathNative());
 				// Save type
 				file->Write(static_cast<uint32_t>(resource->GetResourceType()));
 				// Save resource (to a dedicated file)
-				resource->SaveToFile(resource->GetResourceFilePath());
+				resource->SaveToFile(resource->GetResourceFilePathNative());
 
 				// Update progress
 				ProgressReport::Get().IncrementJobsDone(g_progress_resource_cache);
@@ -232,6 +237,9 @@ namespace Spartan
 			case Resource_TextureCube:
 				Load<RHI_TextureCube>(file_path);
 				break;
+            case Resource_Audio:
+                Load<AudioClip>(file_path);
+                break;
 			}
 		}
 	}
@@ -246,7 +254,7 @@ namespace Spartan
 		m_standard_resource_directories[type] = directory;
 	}
 
-	const string& ResourceCache::GetDataDirectory(const Asset_Type type)
+	string ResourceCache::GetDataDirectory(const Asset_Type type)
 	{
 		for (auto& directory : m_standard_resource_directories)
 		{
@@ -254,7 +262,7 @@ namespace Spartan
 				return directory.second;
 		}
 
-		return NOT_ASSIGNED;
+		return "";
 	}
 
 	void ResourceCache::SetProjectDirectory(const string& directory)

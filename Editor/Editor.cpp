@@ -22,19 +22,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES =====================================
 #include "Editor.h"
 #include "Core/Engine.h"
+#include "Rendering/Model.h"
+#include "ImGui_Extension.h"
 #include "ImGui/Implementation/ImGui_RHI.h"
 #include "ImGui/Implementation/imgui_impl_win32.h"
-#include "Rendering/Renderer.h"
-#include "UI/ImGui_Extension.h"
-#include "UI/IconProvider.h"
-#include "UI/Widgets/Widget_Assets.h"
-#include "UI/Widgets/Widget_Console.h"
-#include "UI/Widgets/Widget_MenuBar.h"
-#include "UI/Widgets/Widget_ProgressDialog.h"
-#include "UI/Widgets/Widget_Properties.h"
-#include "UI/Widgets/Widget_Toolbar.h"
-#include "UI/Widgets/Widget_Viewport.h"
-#include "UI/Widgets/Widget_World.h"
+#include "Widgets/Widget_Assets.h"
+#include "Widgets/Widget_Console.h"
+#include "Widgets/Widget_MenuBar.h"
+#include "Widgets/Widget_ProgressDialog.h"
+#include "Widgets/Widget_Properties.h"
+#include "Widgets/Widget_Toolbar.h"
+#include "Widgets/Widget_Viewport.h"
+#include "Widgets/Widget_World.h"
 //================================================
 
 //= NAMESPACES ==========
@@ -51,52 +50,6 @@ namespace _Editor
 	const char* dockspace_name	= "EditorDockspace";
 }
 
-Editor::Editor(void* window_handle, void* window_instance, float window_width, float window_height)
-{
-	// Create engine
-	m_engine = make_unique<Engine>(window_handle, window_handle, window_instance, window_width, window_height);
-	
-	// Acquire useful engine subsystems
-	m_context	= m_engine->GetContext();
-	m_renderer	= m_context->GetSubsystem<Renderer>().get();
-	m_rhiDevice = m_renderer->GetRhiDevice();
-
-	if (!m_renderer->IsInitialized())
-	{
-		LOG_ERROR("The engine failed to initialize the renderer subsystem, aborting editor creation.");
-		return;
-	}
-
-	// ImGui version validation
-	IMGUI_CHECKVERSION();
-    m_context->GetSubsystem<Settings>()->m_versionImGui = IMGUI_VERSION;
-
-	// ImGui context creation
-	ImGui::CreateContext();
-
-	// ImGui configuration
-	auto& io		= ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-	io.ConfigWindowsResizeFromEdges = true;
-	io.ConfigViewportsNoTaskBarIcon = true;
-	ApplyStyle();
-
-	// ImGui backend setup
-	ImGui_ImplWin32_Init(window_handle);
-	ImGui::RHI::Initialize(m_context, window_width, window_height);
-
-	// Initialization of misc custom systems
-	IconProvider::Get().Initialize(m_context);
-	EditorHelper::Get().Initialize(m_context);
-
-	// Create all ImGui widgets
-	Widgets_Create();
-
-	m_initialized = true;
-}
-
 Editor::~Editor()
 {
 	if (!m_initialized)
@@ -111,15 +64,72 @@ Editor::~Editor()
 	ImGui::DestroyContext();
 }
 
-void Editor::Resize(const unsigned int width, const unsigned int height)
+void Editor::OnWindowMessage(WindowData& window_data)
 {
-	if (!m_initialized)
-		return;
+    if (!m_initialized)
+    {
+        // Create engine
+        m_engine = make_unique<Engine>(window_data);
 
-	ImGui::RHI::OnResize(width, height);
+        // Acquire useful engine subsystems
+        m_context       = m_engine->GetContext();
+        m_renderer      = m_context->GetSubsystem<Renderer>().get();
+        m_rhi_device    = m_renderer->GetRhiDevice();
+
+        if (!m_renderer->IsInitialized())
+        {
+            LOG_ERROR("The engine failed to initialize the renderer subsystem, aborting editor creation.");
+            return;
+        }
+
+        // ImGui version validation
+        IMGUI_CHECKVERSION();
+        m_context->GetSubsystem<Settings>()->m_versionImGui = IMGUI_VERSION;
+
+        // ImGui context creation
+        ImGui::CreateContext();
+
+        // ImGui configuration
+        auto& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+        io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+        io.ConfigWindowsResizeFromEdges = true;
+        io.ConfigViewportsNoTaskBarIcon = true;
+        ApplyStyle();
+
+        // ImGui backend setup
+        ImGui_ImplWin32_Init(window_data.handle);
+        ImGui::RHI::Initialize(m_context, static_cast<float>(window_data.width), static_cast<float>(window_data.height));
+
+        // Initialization of misc custom systems
+        IconProvider::Get().Initialize(m_context);
+        EditorHelper::Get().Initialize(m_context);
+
+        // Create all ImGui widgets
+        Widgets_Create();
+
+        m_initialized = true;
+    }
+    else
+    {
+        ImGui_ImplWin32_WndProcHandler(
+            static_cast<HWND>(window_data.handle),
+            static_cast<uint32_t>(window_data.message),
+            static_cast<int64_t>(window_data.wparam),
+            static_cast<uint64_t>(window_data.lparam)
+        );
+
+        if (m_engine->GetWindowData().width != window_data.width || m_engine->GetWindowData().height != window_data.height)
+        {
+            ImGui::RHI::OnResize(window_data.width, window_data.height);
+        }
+
+        m_engine->SetWindowData(window_data);
+    }
 }
 
-void Editor::Tick()
+void Editor::OnTick()
 {	
 	if (!m_initialized)
 		return;
@@ -217,7 +227,7 @@ void Editor::DockSpace_Begin()
 		auto dock_main_id				= dockspace_id;
 		auto dock_right_id				= ImGui::DockBuilderSplitNode(dock_main_id,		ImGuiDir_Right, 0.2f, nullptr, &dock_main_id);
 		const auto dock_right_down_id	= ImGui::DockBuilderSplitNode(dock_right_id,	ImGuiDir_Down,	0.6f, nullptr, &dock_right_id);
-		auto dock_down_id				= ImGui::DockBuilderSplitNode(dock_main_id,		ImGuiDir_Down,	0.3f, nullptr, &dock_main_id);
+		auto dock_down_id				= ImGui::DockBuilderSplitNode(dock_main_id,		ImGuiDir_Down,	0.2f, nullptr, &dock_main_id);
 		const auto dock_down_right_id	= ImGui::DockBuilderSplitNode(dock_down_id,		ImGuiDir_Right, 0.6f, nullptr, &dock_down_id);
 
 		// Dock windows	
@@ -263,21 +273,22 @@ void Editor::ApplyStyle() const
     // Use default black style as a base
     ImGui::StyleColorsDark();
 
-    auto& style = ImGui::GetStyle();
-    auto& io    = ImGui::GetIO();
+    ImGuiStyle& style   = ImGui::GetStyle();
+    auto& io            = ImGui::GetIO();
 
 	// Spatial
-	style.WindowBorderSize	= 1.0f;
-	style.FrameBorderSize	= 0.0f;
-    style.ScrollbarSize     = 20.0f;
-	style.FramePadding		= ImVec2(5, 5);
-	style.ItemSpacing		= ImVec2(6, 5);	
-	style.WindowRounding	= roundness;
-	style.FrameRounding		= roundness;
-	style.PopupRounding		= roundness;
-	style.GrabRounding		= roundness;
-    style.ScrollbarRounding = roundness;
-    style.Alpha             = 1.0f;	
+	style.WindowBorderSize	        = 1.0f;
+	style.FrameBorderSize	        = 0.0f;
+    style.ScrollbarSize             = 20.0f;
+	style.FramePadding		        = ImVec2(5, 5);
+	style.ItemSpacing		        = ImVec2(6, 5);
+    style.WindowMenuButtonPosition  = ImGuiDir_Right;
+	style.WindowRounding	        = roundness;
+	style.FrameRounding		        = roundness;
+	style.PopupRounding		        = roundness;
+	style.GrabRounding		        = roundness;
+    style.ScrollbarRounding         = roundness;
+    style.Alpha                     = 1.0f;	
 
 	// Colors
 	style.Colors[ImGuiCol_Text]						= text;

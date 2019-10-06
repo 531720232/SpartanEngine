@@ -62,6 +62,9 @@ namespace Spartan
 		bool TimeBlockStart(const std::string& func_name, bool profile_cpu = true, bool profile_gpu = false);
 		bool TimeBlockEnd();
 
+        // Stutter detection
+        void DetectStutter();
+
         // Properties
 		void SetProfilingEnabledCpu(const bool enabled)	{ m_profile_cpu_enabled = enabled; }
 		void SetProfilingEnabledGpu(const bool enabled)	{ m_profile_gpu_enabled = enabled; }
@@ -76,6 +79,8 @@ namespace Spartan
 		const auto& GpuGetName()					    { return m_gpu_name; }
         auto GpuGetMemoryAvailable()			        { return m_gpu_memory_available; }
         auto GpuGetMemoryUsed()					        { return m_gpu_memory_used; }
+        bool IsCpuStuttering()                          { return m_is_stuttering_cpu; }
+        bool IsGpuStuttering()                          { return m_is_stuttering_gpu; }
 		
 		// Metrics - RHI
 		uint32_t m_rhi_draw_calls				= 0;
@@ -84,8 +89,9 @@ namespace Spartan
 		uint32_t m_rhi_bindings_buffer_constant = 0;
 		uint32_t m_rhi_bindings_sampler			= 0;
 		uint32_t m_rhi_bindings_texture			= 0;
-		uint32_t m_rhi_bindings_vertex_shader	= 0;
-		uint32_t m_rhi_bindings_pixel_shader	= 0;
+		uint32_t m_rhi_bindings_shader_vertex	= 0;
+		uint32_t m_rhi_bindings_shader_pixel	= 0;
+        uint32_t m_rhi_bindings_shader_compute  = 0;
 		uint32_t m_rhi_bindings_render_target	= 0;
 
 		// Metrics - Renderer
@@ -106,8 +112,9 @@ namespace Spartan
             m_rhi_bindings_buffer_constant  = 0;
             m_rhi_bindings_sampler          = 0;
             m_rhi_bindings_texture          = 0;
-            m_rhi_bindings_vertex_shader    = 0;
-            m_rhi_bindings_pixel_shader     = 0;
+            m_rhi_bindings_shader_vertex    = 0;
+            m_rhi_bindings_shader_pixel     = 0;
+            m_rhi_bindings_shader_compute   = 0;
             m_rhi_bindings_render_target    = 0;
         }
 
@@ -139,6 +146,14 @@ namespace Spartan
 		std::string m_gpu_name			= "N/A";
 		uint32_t m_gpu_memory_available	= 0;
 		uint32_t m_gpu_memory_used		= 0;
+
+        // Stutter detection
+        double m_cpu_avg_ms             = 0.0;
+        double m_gpu_avg_ms             = 0.0;
+        double m_stutter_delta_ms       = 0.5;
+        double m_frames_to_accumulate   = 5;
+        bool m_is_stuttering_cpu        = false;
+        bool m_is_stuttering_gpu        = false;
 
 		// Misc
 		std::string m_metrics;

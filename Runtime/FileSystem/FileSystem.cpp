@@ -117,6 +117,7 @@ namespace Spartan
 			".fbx",
 			".blend",
 			".dae",
+            ".gltf",
 			".lwo",
 			".c4d",
 			".ase",
@@ -183,7 +184,7 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::CreateDirectory: %s, %s", e.what(), path.c_str());
+			LOGF_ERROR("%s, %s", e.what(), path.c_str());
 			return true;
 		}
 	}
@@ -196,7 +197,7 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::DeleteDirectory: %s, %s", e.what(), directory.c_str());
+			LOGF_ERROR("s, %s", e.what(), directory.c_str());
 			return true;
 		}
 	}
@@ -209,7 +210,7 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::DirectoryExists: %s, %s", e.what(), directory.c_str());
+			LOGF_ERROR("%s, %s", e.what(), directory.c_str());
 			return true;
 		}
 	}
@@ -222,7 +223,7 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::IsDirectory: %s, %s", e.what(), directory.c_str());
+			LOGF_ERROR("%s, %s", e.what(), directory.c_str());
 			return false;
 		}
 	}
@@ -240,10 +241,24 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::FileExists: %s, %s", e.what(), file_path.c_str());
+			LOGF_ERROR("%s, %s", e.what(), file_path.c_str());
 			return true;
 		}
 	}
+
+    bool FileSystem::IsFilePath(const string& file_path)
+    {
+        if (file_path.empty())
+            return false;
+
+        if (IsDirectory(file_path))
+            return false;
+
+        if (GetFileFormatFromFilePath(file_path).empty())
+            return false;
+
+        return true;
+    }
 
 	bool FileSystem::DeleteFile_(const string& file_path)
 	{
@@ -257,7 +272,7 @@ namespace Spartan
 		}
 		catch (filesystem_error& e)
 		{
-			LOGF_ERROR("FileSystem::DeleteFile: %s, %s", e.what(), file_path.c_str());
+			LOGF_ERROR("%s, %s", e.what(), file_path.c_str());
 			return true;
 		}
 	}
@@ -279,87 +294,139 @@ namespace Spartan
 		}
 		catch (filesystem_error& e) 
 		{
-			LOG_ERROR("FileSystem: Could not copy \"" + source + "\". " + string(e.what()));
+			LOGF_ERROR("%s", e.what());
 			return true;
 		}
 	}
 
-	string FileSystem::GetFileNameFromFilePath(const string& path)
+    string FileSystem::GetFileNameFromFilePath(const string& file_path)
 	{
-		auto lastindex	= path.find_last_of("\\/");
-		auto fileName	= path.substr(lastindex + 1, path.length());
+        size_t last_index = file_path.find_last_of("\\/");
 
-		return fileName;
+        if (last_index != string::npos)
+		    return file_path.substr(last_index + 1, file_path.length());
+
+        LOGF_ERROR("Failed to extract file name from \"%s\"", file_path.c_str());
+		return "";
 	}
 
-	string FileSystem::GetFileNameNoExtensionFromFilePath(const string& filepath)
+	string FileSystem::GetFileNameNoExtensionFromFilePath(const string& file_path)
 	{
-		auto fileName		= GetFileNameFromFilePath(filepath);
-		auto lastindex		= fileName.find_last_of('.');
-		auto fileNameNoExt	= fileName.substr(0, lastindex);
+		auto file_name		= GetFileNameFromFilePath(file_path);
+        size_t last_index	= file_name.find_last_of('.');
 
-		return fileNameNoExt;
+        if (last_index != string::npos)
+		    return file_name.substr(0, last_index);
+
+        LOGF_ERROR("Failed to extract file name from \"%s\"", file_path.c_str());
+		return "";
 	}
 
-	string FileSystem::GetDirectoryFromFilePath(const string& filePath)
-	{
-		auto lastindex = filePath.find_last_of("\\/");
-		auto directory = filePath.substr(0, lastindex + 1);
+    string FileSystem::GetFileFormatFromFilePath(const string& file_path)
+    {
+        size_t last_index = file_path.find_last_of('.');
 
-		return directory;
+        if (last_index != string::npos)
+            return file_path.substr(last_index, file_path.length());
+
+        LOGF_ERROR("Failed to extract file format from \"%s\"", file_path.c_str());
+        return "";
+    }
+
+    string FileSystem::GetDirectoryFromFilePath(const string& file_path)
+	{
+        size_t last_index = file_path.find_last_of("\\/");
+
+        if (last_index != string::npos)
+		    return file_path.substr(0, last_index + 1);
+
+        LOGF_ERROR("Failed to extract directory from \"%s\"", file_path.c_str());
+		return "";
 	}
 
-	string FileSystem::GetFilePathWithoutExtension(const string& filePath)
+	string FileSystem::GetFilePathWithoutExtension(const string& file_path)
 	{
-		auto directory		= GetDirectoryFromFilePath(filePath);
-		auto fileNameNoExt	= GetFileNameNoExtensionFromFilePath(filePath);
+		auto directory		= GetDirectoryFromFilePath(file_path);
+		auto fileNameNoExt	= GetFileNameNoExtensionFromFilePath(file_path);
 
 		return directory + fileNameNoExt;
 	}
 
-	string FileSystem::GetExtensionFromFilePath(const string& filePath)
+	string FileSystem::GetExtensionFromFilePath(const string& file_path)
 	{
-		if (filePath.empty() || filePath == NOT_ASSIGNED)
-			return NOT_ASSIGNED;
+		if (file_path.empty())
+			return "";
 
-		auto lastindex = filePath.find_last_of('.');
-		if (string::npos != lastindex)
+        size_t last_index = file_path.find_last_of('.');
+        if (last_index != string::npos)
 		{
 			// extension with dot included
-			return filePath.substr(lastindex, filePath.length());
+			return file_path.substr(last_index, file_path.length());
 		}
 
-		return NOT_ASSIGNED;
+		return "";
 	}
 
-	vector<string> FileSystem::GetDirectoriesInDirectory(const string& directory)
+    string FileSystem::NativizeFilePath(const string& file_path)
+    {
+        string file_path_no_ext = GetFilePathWithoutExtension(file_path);
+
+        if (IsSupportedAudioFile(file_path))    return file_path_no_ext + EXTENSION_AUDIO;
+        if (IsSupportedImageFile(file_path))    return file_path_no_ext + EXTENSION_TEXTURE;
+        if (IsSupportedModelFile(file_path))    return file_path_no_ext + EXTENSION_MODEL;
+        if (IsSupportedFontFile(file_path))     return file_path_no_ext + EXTENSION_FONT;
+        if (IsSupportedShaderFile(file_path))   return file_path_no_ext + EXTENSION_SHADER;
+
+        LOGF_ERROR("Failed to nativize file path");
+        return file_path;
+    }
+
+    vector<string> FileSystem::GetDirectoriesInDirectory(const string& directory)
 	{
-		vector<string> subDirs;
-		directory_iterator end_itr; // default construction yields past-the-end
-		for (directory_iterator itr(directory); itr != end_itr; ++itr)
+		vector<string> directories;
+		directory_iterator it_end; // default construction yields past-the-end
+		for (directory_iterator it(directory); it != it_end; ++it)
 		{
-			if (!is_directory(itr->status()))
+			if (!is_directory(it->status()))
 				continue;
 
-			subDirs.emplace_back(itr->path().generic_string());
+            try
+            {
+                // a crash is possible if the characters are
+                // something that can't be converted, like Russian.
+                directories.emplace_back(it->path().string());
+            }
+            catch (system_error& e)
+            {
+                LOGF_ERROR("Failed to read a directory path. %s", e.what());
+            }
 		}
 
-		return subDirs;
+		return directories;
 	}
 
 	vector<string> FileSystem::GetFilesInDirectory(const string& directory)
 	{
-		vector<string> filePaths;
-		directory_iterator end_itr; // default construction yields past-the-end
-		for (directory_iterator itr(directory); itr != end_itr; ++itr)
+		vector<string> file_paths;
+		directory_iterator it_end; // default construction yields past-the-end
+		for (directory_iterator it(directory); it != it_end; ++it)
 		{
-			if (!is_regular_file(itr->status()))
+			if (!is_regular_file(it->status()))
 				continue;
 
-			filePaths.emplace_back(itr->path().generic_string());
+            try
+            {
+                // a crash is possible if the characters are
+                // something that can't be converted, like Russian.
+                file_paths.emplace_back(it->path().string());
+            }
+            catch (system_error& e)
+            {
+                LOGF_ERROR("Failed to read a file path. %s", e.what());
+            }
 		}
 
-		return filePaths;
+		return file_paths;
 	}
 
 	vector<string> FileSystem::GetSupportedFilesInDirectory(const string& directory)
@@ -585,17 +652,30 @@ namespace Spartan
 		return GetExtensionFromFilePath(filePath) == EXTENSION_TEXTURE;
 	}
 
-	bool FileSystem::IsEngineShaderFile(const string& filePath)
+    bool FileSystem::IsEngineAudioFile(const std::string& filePath)
+    {
+        return GetExtensionFromFilePath(filePath) == EXTENSION_AUDIO;
+    }
+
+    bool FileSystem::IsEngineShaderFile(const string& filePath)
 	{
 		return GetExtensionFromFilePath(filePath) == EXTENSION_SHADER;
 	}
 
-	bool FileSystem::IsEngineMetadataFile(const string& filePath)
-	{
-		return GetExtensionFromFilePath(filePath) == METADATA_EXTENSION;
-	}
+    bool FileSystem::IsEngineFile(const string& file_path)
+    {
+        return  IsEngineScriptFile(file_path)   ||
+                IsEnginePrefabFile(file_path)   ||
+                IsEngineModelFile(file_path)    ||
+                IsEngineMaterialFile(file_path) ||
+                IsEngineMeshFile(file_path)     ||
+                IsEngineSceneFile(file_path)    ||
+                IsEngineTextureFile(file_path)  ||
+                IsEngineAudioFile(file_path)    ||
+                IsEngineShaderFile(file_path);
+    }
 
-	// Returns a file path which is relative to the engine's executable
+    // Returns a file path which is relative to the engine's executable
 	string FileSystem::GetRelativeFilePath(const string& absoluteFilePath)
 	{		
 		// create absolute paths

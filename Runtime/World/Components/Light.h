@@ -29,6 +29,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../Math/Vector3.h"
 #include "../../Math/Matrix.h"
 #include "../../RHI/RHI_Definition.h"
+#include "../../Math/Vector2.h"
+#include "../../Math/Frustum.h"
 //===================================
 
 namespace Spartan
@@ -37,11 +39,6 @@ namespace Spartan
 	class Renderable;
 	class Renderer;
 
-	namespace Math
-	{
-		class Frustum;
-	}
-
 	enum LightType
 	{
 		LightType_Directional,
@@ -49,11 +46,20 @@ namespace Spartan
 		LightType_Spot
 	};
 
+    static const int g_cascade_count = 4;
+    struct Cascade
+    {
+        Math::Vector3 min       = Math::Vector3::Zero;
+        Math::Vector3 max       = Math::Vector3::Zero;
+        Math::Vector3 center    = Math::Vector3::Zero;
+        Math::Frustum frustum;
+    };
+
 	class SPARTAN_CLASS Light : public IComponent
 	{
 	public:
-		Light(Context* context, Entity* entity, Transform* transform);
-		~Light();
+		Light(Context* context, Entity* entity, uint32_t id = 0);
+        ~Light() = default;
 
 		//= COMPONENT ================================
 		void OnInitialize() override;
@@ -88,8 +94,7 @@ namespace Spartan
 		void SetNormalBias(float value) { m_normal_bias = value; }
 		auto GetNormalBias()			{ return m_normal_bias; }
 
-		Math::Vector3 GetDirection();
-		void ClampRotation();
+		Math::Vector3 GetDirection() const;
 
 		const Math::Matrix& GetViewMatrix(uint32_t index = 0);
 		const Math::Matrix& GetProjectionMatrix(uint32_t index = 0);
@@ -97,27 +102,54 @@ namespace Spartan
 		const auto& GetShadowMap() { return m_shadow_map; }
         void CreateShadowMap(bool force);
 
+        bool IsInViewFrustrum(Renderable* renderable, uint32_t index);
+
+        // Constant buffer
+        void UpdateConstantBuffer(bool volumetric_lighting, bool screen_space_contact_shadows);
+        const auto& GetConstantBuffer() const { return m_cb_light_gpu; }
+
 	private:
 		void ComputeViewMatrix();
-		bool ComputeProjectionMatrix(uint32_t index = 0);	
+		bool ComputeProjectionMatrix(uint32_t index = 0);
+        void ComputeCascadeSplits();
 		
-		LightType m_lightType	= LightType_Point;
+		LightType m_lightType	= LightType_Directional;
 		bool m_cast_shadows		= true;
 		float m_range			= 10.0f;
-		float m_intensity		= 2.0f;
+		float m_intensity		= 15.0f;
 		float m_angle_rad		= 0.5f; // about 30 degrees
-		float m_bias			= 0.0008f;
-		float m_normal_bias		= 120.0f;	
+		float m_bias			= 0.001f;
+		float m_normal_bias		= 40.0f;	
 		bool m_is_dirty			= true;
-		Math::Vector4 m_color;
+		Math::Vector4 m_color   = Math::Vector4(1.0f, 0.76f, 0.57f, 1.0f);
 		std::array<Math::Matrix, 6> m_matrix_view;
 		std::array<Math::Matrix, 6> m_matrix_projection;
 		Math::Quaternion m_lastRotLight;
 		Math::Vector3 m_lastPosLight;
-		Math::Vector3 m_lastPosCamera;
+		Math::Matrix m_camera_last_view;
+        std::vector<Cascade> m_cascades;
 		
 		// Shadow map
 		std::shared_ptr<RHI_Texture> m_shadow_map;	
 		Renderer* m_renderer;
+
+        // Constant buffer
+        struct CB_Light
+        {
+            Math::Matrix view_projection[g_cascade_count];
+            Math::Vector3 color;
+            float intensity;
+            Math::Vector3 position;
+            float range;
+            Math::Vector3 direction;
+            float angle;
+            float bias;
+            float normal_bias;
+            float shadow_enabled;
+            float volumetric_lighting;
+            float screen_space_contact_shadows;
+            Math::Vector3 padding = Math::Vector3::Zero;
+        };
+        std::shared_ptr<RHI_ConstantBuffer> m_cb_light_gpu;
 	};
 }

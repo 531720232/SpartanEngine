@@ -34,7 +34,7 @@ namespace Spartan
 	class SPARTAN_CLASS AudioSource : public IComponent
 	{
 	public:
-		AudioSource(Context* context, Entity* entity, Transform* transform);
+		AudioSource(Context* context, Entity* entity, uint32_t id = 0);
 		~AudioSource() = default;
 
 		//= INTERFACE ================================
@@ -48,8 +48,8 @@ namespace Spartan
 		//============================================
 
 		//= PROPERTIES ===================================================================
-		void SetAudioClip(const std::shared_ptr<AudioClip>& audio_clip);
-		const std::string& GetAudioClipName();
+        void SetAudioClip(const std::string& file_path);
+		std::string GetAudioClipName();
 
 		bool Play();
 		bool Stop();
@@ -78,7 +78,6 @@ namespace Spartan
 
 	private:
 		std::shared_ptr<AudioClip> m_audio_clip;
-		std::string m_file_path;
 		bool m_mute;
 		bool m_play_on_start;
 		bool m_loop;

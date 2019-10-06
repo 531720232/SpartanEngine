@@ -28,6 +28,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../FileSystem/FileSystem.h"
 #include "../Rendering/Renderer.h"
 #include "../Threading/Threading.h"
+#include "pugixml.hpp"
 //===================================
 
 //= NAMESPACES ================
@@ -69,6 +70,11 @@ namespace Spartan
     Settings::Settings(Context* context) : ISubsystem(context)
     {
         m_context = context;
+
+        // Get PugiXml version
+        const auto major = to_string(PUGIXML_VERSION / 1000);
+        const auto minor = to_string(PUGIXML_VERSION).erase(0, 1).erase(1, 1);
+        m_versionPugiXML = major + "." + minor;
     }
 
     Settings::~Settings()
@@ -107,14 +113,15 @@ namespace Spartan
 		_Settings::fout.open(_Settings::file_name, ofstream::out);
 
 		// Write the settings
-		_Settings::write_setting(_Settings::fout, "bFullScreen",           m_is_fullscreen);
-		_Settings::write_setting(_Settings::fout, "bIsMouseVisible",       m_is_mouse_visible);
-        _Settings::write_setting(_Settings::fout, "fResolutionWidth",      m_resolution.x);
-        _Settings::write_setting(_Settings::fout, "fResolutionHeight",     m_resolution.y);
-		_Settings::write_setting(_Settings::fout, "iShadowMapResolution",  m_shadow_map_resolution);
-		_Settings::write_setting(_Settings::fout, "iAnisotropy",           m_anisotropy);
-		_Settings::write_setting(_Settings::fout, "fFPSLimit",             m_fps_limit);
-		_Settings::write_setting(_Settings::fout, "iMaxThreadCount",       m_max_thread_count);
+		_Settings::write_setting(_Settings::fout, "bFullScreen",            m_is_fullscreen);
+		_Settings::write_setting(_Settings::fout, "bIsMouseVisible",        m_is_mouse_visible);
+        _Settings::write_setting(_Settings::fout, "fResolutionWidth",       m_resolution.x);
+        _Settings::write_setting(_Settings::fout, "fResolutionHeight",      m_resolution.y);
+		_Settings::write_setting(_Settings::fout, "iShadowMapResolution",   m_shadow_map_resolution);
+		_Settings::write_setting(_Settings::fout, "iAnisotropy",            m_anisotropy);
+		_Settings::write_setting(_Settings::fout, "fFPSLimit",              m_fps_limit);
+		_Settings::write_setting(_Settings::fout, "iMaxThreadCount",        m_max_thread_count);
+        _Settings::write_setting(_Settings::fout, "iRendererFlags",         m_renderer_flags);
 
 		// Close the file.
 		_Settings::fout.close();
@@ -137,6 +144,7 @@ namespace Spartan
 		_Settings::read_setting(_Settings::fin, "iAnisotropy",             m_anisotropy);
 		_Settings::read_setting(_Settings::fin, "fFPSLimit",               m_fps_limit);
 		_Settings::read_setting(_Settings::fin, "iMaxThreadCount",         m_max_thread_count);
+        _Settings::read_setting(_Settings::fin, "iRendererFlags",          m_renderer_flags);
 
 		// Close the file.
 		_Settings::fin.close();
@@ -151,6 +159,7 @@ namespace Spartan
         m_resolution            = renderer->GetResolution();   
         m_shadow_map_resolution = renderer->GetShadowResolution();
         m_anisotropy            = renderer->GetAnisotropy();
+        m_renderer_flags        = renderer->GetFlags();
     }
 
     void Settings::Map()
@@ -160,5 +169,6 @@ namespace Spartan
         m_context->GetSubsystem<Timer>()->SetTargetFps(m_fps_limit);
         renderer->SetAnisotropy(m_anisotropy);
         renderer->SetShadowResolution(m_shadow_map_resolution);
+        renderer->SetFlags(m_renderer_flags);
     }
 }

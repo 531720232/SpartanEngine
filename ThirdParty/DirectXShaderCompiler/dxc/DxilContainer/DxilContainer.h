@@ -156,6 +156,7 @@ enum class DxilProgramSigSemantic : uint32_t {
   FinalLineDensityTessfactor = 16,
   Barycentrics = 23,
   ShadingRate = 24,
+  CullPrimitive = 25,
   Target = 64,
   Depth = 65,
   Coverage = 66,
@@ -403,11 +404,12 @@ inline bool GetDxilShaderDebugName(const DxilPartHeader *pDebugNamePart,
 }
 
 enum class SerializeDxilFlags : uint32_t {
-  None = 0,                         // No flags defined.
-  IncludeDebugInfoPart = 1,         // Include the debug info part in the container.
-  IncludeDebugNamePart = 2,         // Include the debug name part in the container.
-  DebugNameDependOnSource = 4,      // Make the debug name depend on source (and not just final module).
-  StripReflectionFromDxilPart = 8,  // Strip Reflection info from DXIL part.
+  None                        = 0,      // No flags defined.
+  IncludeDebugInfoPart        = 1 << 0, // Include the debug info part in the container.
+  IncludeDebugNamePart        = 1 << 1, // Include the debug name part in the container.
+  DebugNameDependOnSource     = 1 << 2, // Make the debug name depend on source (and not just final module).
+  StripReflectionFromDxilPart = 1 << 3, // Strip Reflection info from DXIL part.
+  IncludeReflectionPart       = 1 << 4, // Include reflection in STAT part.
 };
 inline SerializeDxilFlags& operator |=(SerializeDxilFlags& l, const SerializeDxilFlags& r) {
   l = static_cast<SerializeDxilFlags>(static_cast<int>(l) | static_cast<int>(r));

@@ -45,18 +45,18 @@ namespace Spartan
 {
 	RHI_Shader::~RHI_Shader()
 	{
-		auto rhi_context = m_rhi_device->GetContextRhi();
+        const auto rhi_context = m_rhi_device->GetContextRhi();
 
 		if (HasVertexShader())
 		{
-			vkDestroyShaderModule(rhi_context->device, static_cast<VkShaderModule>(m_vertex_shader), nullptr);
-			m_vertex_shader = nullptr;
+			vkDestroyShaderModule(rhi_context->device, static_cast<VkShaderModule>(m_resource_vertex), nullptr);
+			m_resource_vertex = nullptr;
 		}
 
 		if (HasPixelShader())
 		{
-			vkDestroyShaderModule(rhi_context->device, static_cast<VkShaderModule>(m_pixel_shader), nullptr);
-			m_pixel_shader = nullptr;
+			vkDestroyShaderModule(rhi_context->device, static_cast<VkShaderModule>(m_resource_pixel), nullptr);
+			m_resource_pixel = nullptr;
 		}
 	}
 
@@ -213,50 +213,6 @@ namespace Spartan
 			return false;
 		}
 
-		inline string utf16_utf8(wstring source)
-		{
-			string destination;
-			wchar_t symbol;
-			unsigned char code0;
-			unsigned char code1;
-			unsigned char code2;
-
-			for (wstring::iterator it = source.begin(); it != source.end(); it++)
-			{
-				symbol = static_cast<wchar_t>(*it);
-
-				code0 = 0;
-				code1 = 0;
-				code2 = 0;
-
-				if (symbol < 0x00000080) 
-				{
-					code0 = static_cast<char>(*it);
-					destination.push_back(code0);
-				}
-				else if (symbol < 0x00000800) 
-				{
-					code0 = symbol % 0x40;
-					code1 = (symbol - code0) / 0x40;
-
-					destination.push_back(0xc0 | code1);
-					destination.push_back(0x80 | code0);
-				}
-				else 
-				{
-					code0 = symbol % 0x40;
-					code1 = ((symbol - code0) / 0x40) % 0x40;
-					code2 = (symbol - code0 - (0x40 * code1)) / 0x1000;
-
-					destination.push_back(0xe0 | code2);
-					destination.push_back(0x80 | code1);
-					destination.push_back(0x80 | code0);
-				}
-			}
-
-			return destination;
-		}
-
 		class Instance
 		{
 		public:
@@ -311,8 +267,9 @@ namespace Spartan
 				{
 					file_name += 2;
 				}
-				
-				string file_name_utf8 = utf16_utf8(file_name);
+
+                // utf16 to utf8, is this done properly ?
+                const string file_name_utf8 = CW2A(file_name);
 
 				auto blob_deleter = [](Blob* blob) { delete blob; };
 				unique_ptr<Blob, decltype(blob_deleter)> source(nullptr, blob_deleter);
@@ -345,7 +302,7 @@ namespace Spartan
 			ULONG STDMETHODCALLTYPE Release() override
 			{
 				--m_ref;
-				ULONG result = m_ref;
+                const ULONG result = m_ref;
 				if (result == 0)
 				{
 					delete this;
@@ -381,20 +338,17 @@ namespace Spartan
 	}
 	
 	template <typename T>
-	void* RHI_Shader::_Compile(const Shader_Stage type, const string& shader)
+	void* RHI_Shader::_Compile(const Shader_Type type, const string& shader)
 	{
 		// Deduce some things
-		auto is_file	= FileSystem::IsSupportedShaderFile(shader);
-		auto file_name	= is_file ? FileSystem::StringToWstring(FileSystem::GetFileNameFromFilePath(shader)) : wstring(L"shader");
+        const auto is_file	    = FileSystem::IsSupportedShaderFile(shader);
+        const auto file_name	= is_file ? FileSystem::StringToWstring(FileSystem::GetFileNameFromFilePath(shader)) : wstring(L"shader");
 		string file_directory;
 		if (is_file)
 		{
 			file_directory = FileSystem::GetDirectoryFromFilePath(shader);
 		}
 
-		// Arguments
-		auto entry_point		= FileSystem::StringToWstring((type == Shader_Vertex) ? _RHI_Shader::entry_point_vertex : _RHI_Shader::entry_point_pixel);
-		auto target_profile		= FileSystem::StringToWstring((type == Shader_Vertex) ? "vs_" + _RHI_Shader::shader_model : "ps_" + _RHI_Shader::shader_model);
 		vector<LPCWSTR> arguments = 
 		{	
             L"-spirv",
@@ -410,8 +364,9 @@ namespace Spartan
 		// Create standard defines
 		vector<DxcDefine> defines =
 		{
-			DxcDefine{ L"COMPILE_VS", type == Shader_Vertex ? L"1" : L"0" },
-			DxcDefine{ L"COMPILE_PS", type == Shader_Pixel ? L"1" : L"0" }
+			DxcDefine{ L"COMPILE_VS", type == Shader_Vertex     ? L"1" : L"0" },
+			DxcDefine{ L"COMPILE_PS", type == Shader_Pixel      ? L"1" : L"0" },
+            DxcDefine{ L"COMPILE_CS", type == Shader_Compute    ? L"1" : L"0" }
 		};
 
 		// Convert defines to wstring...
@@ -419,7 +374,7 @@ namespace Spartan
 		for (const auto& define : m_defines)
 		{
 			auto first	= FileSystem::StringToWstring(define.first);
-			auto second = FileSystem::StringToWstring(define.second);
+            const auto second = FileSystem::StringToWstring(define.second);
 			defines_wstring[first] = second;
 		}
 
@@ -435,7 +390,7 @@ namespace Spartan
 			HRESULT result;
 			if (is_file)
 			{
-				auto file_path = FileSystem::StringToWstring(shader);				
+                const auto file_path = FileSystem::StringToWstring(shader);				
 				result = DxShaderCompiler::Instance::Get().library->CreateBlobFromFile(file_path.c_str(), nullptr, &shader_blob);
 			}
 			else // Source
@@ -451,20 +406,20 @@ namespace Spartan
 		}
 
 		// Compile
-		CComPtr<IDxcIncludeHandler> include_handler = new DxShaderCompiler::SpartanIncludeHandler(file_directory);
+        const CComPtr<IDxcIncludeHandler> include_handler = new DxShaderCompiler::SpartanIncludeHandler(file_directory);
 		CComPtr<IDxcOperationResult> compilation_result = nullptr;
 		{
-			if (FAILED(DxShaderCompiler::Instance::Get().compiler->Compile(
+			if (FAILED(DxShaderCompiler::Instance::Get().compiler->Compile
+            (
 					shader_blob,												// shader blob
 					file_name.c_str(),											// file name (for warnings and errors)
-					entry_point.c_str(),										// entry point function
-					target_profile.c_str(),										// target profile
+                    FileSystem::StringToWstring(GetEntryPoint()).c_str(),		// entry point function
+                    FileSystem::StringToWstring(GetTargetProfile()).c_str(),	// target profile
 					arguments.data(), static_cast<uint32_t>(arguments.size()),	// compilation arguments
 					defines.data(), static_cast<uint32_t>(defines.size()),		// shader defines
 					include_handler,											// handler for #include directives
 					&compilation_result))
-				)
-			{
+			){
 				LOGF_ERROR("Failed to compile %s", file_name.c_str());
 				return nullptr;
 			}
@@ -479,9 +434,8 @@ namespace Spartan
 		// Create shader module
 		CComPtr<IDxcBlob> shader_compiled	= nullptr;
 		VkShaderModule shader_module		= nullptr;
-		compilation_result->GetResult(&shader_compiled);			
-		if (shader_compiled)
-		{
+        if (SUCCEEDED(compilation_result->GetResult(&shader_compiled)))
+        {
 			VkShaderModuleCreateInfo create_info = {};
 			create_info.sType		= VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 			create_info.codeSize	= static_cast<size_t>(shader_compiled->GetBufferSize());
@@ -503,14 +457,22 @@ namespace Spartan
 					if (!m_input_layout->Create<T>(nullptr))
 					{
 						LOGF_ERROR("Failed to create input layout for %s", FileSystem::GetFileNameFromFilePath(shader).c_str());
+                        return nullptr;
 					}
 				}
 			}
+            else
+            {
+                LOG_ERROR("Failed to create shader module.");
+                return nullptr;
+            }
 		}	
-		else
+        else
 		{
-				LOG_ERROR("Failed to create shader module.");
+            LOG_ERROR("Failed to get shader buffer.");
+            return nullptr;
 		}
+
 		return static_cast<void*>(shader_module);
 	}		
 }

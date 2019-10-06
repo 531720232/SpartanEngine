@@ -25,26 +25,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <vector>
 #include <memory>
 #include "RHI/RHI_Definition.h"
+#include "Widgets/Widget.h"
 //=============================
 
 //= FORWARD DECLARATIONS =
-class Widget;
 namespace Spartan 
 {
 	class Context; 
 	class Engine;
 	class Renderer;
+    struct WindowData;
 }
 //========================
 
 class Editor
 {
 public:
-	Editor(void* window_handle, void* window_instance, float width, float height);
+    Editor() = default;
 	~Editor();
 
-	void Resize(unsigned int width, unsigned int height);
-	void Tick();
+    void OnWindowMessage(Spartan::WindowData& window_data);
+	void OnTick();
 
 private:
 	void Widgets_Create();
@@ -59,7 +60,7 @@ private:
 
 	// Engine
 	std::unique_ptr<Spartan::Engine> m_engine;
-	std::shared_ptr<Spartan::RHI_Device> m_rhiDevice;
+	std::shared_ptr<Spartan::RHI_Device> m_rhi_device;
 	Spartan::Context* m_context	    = nullptr;
 	Spartan::Renderer* m_renderer	= nullptr;	
 };

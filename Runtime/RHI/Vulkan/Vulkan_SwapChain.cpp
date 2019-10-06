@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //= IMPLEMENTATION ===============
 #include "../RHI_Implementation.h"
+#include "../../Math/MathHelper.h"
 #ifdef API_GRAPHICS_VULKAN
 //================================
 
@@ -95,7 +96,7 @@ namespace Spartan
 
         inline VkSurfaceFormatKHR choose_format(const VkFormat prefered_format, const std::vector<VkSurfaceFormatKHR>& available_formats)
         {
-            VkColorSpaceKHR color_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+            const VkColorSpaceKHR color_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 
             if (available_formats.size() == 1 && available_formats[0].format == VK_FORMAT_UNDEFINED)
             {
@@ -121,7 +122,7 @@ namespace Spartan
             uint32_t height,
             uint32_t buffer_count,
             RHI_Format format,
-            RHI_Present_Mode present_mode,
+            uint32_t flags,
             void* window_handle,
             void* render_pass,
             void*& surface_out,
@@ -175,8 +176,8 @@ namespace Spartan
             // Compute extent
             VkExtent2D extent =
             {
-                Clamp(width, surface_support.capabilities.minImageExtent.width, surface_support.capabilities.maxImageExtent.width),
-                Clamp(height, surface_support.capabilities.minImageExtent.height, surface_support.capabilities.maxImageExtent.height)
+                Math::Clamp(width, surface_support.capabilities.minImageExtent.width, surface_support.capabilities.maxImageExtent.width),
+                Math::Clamp(height, surface_support.capabilities.minImageExtent.height, surface_support.capabilities.maxImageExtent.height)
             };
 
             // Choose format
@@ -211,7 +212,7 @@ namespace Spartan
 
                 create_info.preTransform    = surface_support.capabilities.currentTransform;
                 create_info.compositeAlpha  = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-                create_info.presentMode     = choose_present_mode(static_cast<VkPresentModeKHR>(present_mode), surface_support.present_modes);
+                create_info.presentMode     = choose_present_mode(static_cast<VkPresentModeKHR>(flags), surface_support.present_modes);
                 create_info.clipped         = VK_TRUE;
                 create_info.oldSwapchain    = nullptr;
 
@@ -233,7 +234,7 @@ namespace Spartan
             }
 
             // Create image view lambda
-            auto CreateImageView = [](const std::shared_ptr<RHI_Device>& rhi_device, VkImage& _image, VkImageView& image_view, VkFormat format, bool swizzle = false)
+            auto create_image_view = [](const std::shared_ptr<RHI_Device>& rhi_device, VkImage& _image, VkImageView& image_view, VkFormat format, bool swizzle = false)
             {
                 VkImageViewCreateInfo create_info           = {};
                 create_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -263,7 +264,7 @@ namespace Spartan
                 swap_chain_image_views.resize(swap_chain_images.size());
                 for (size_t i = 0; i < swap_chain_image_views.size(); i++)
                 {
-                    if (!CreateImageView(rhi_device, swap_chain_images[i], swap_chain_image_views[i], rhi_context->surface_format.format, swizzle))
+                    if (!create_image_view(rhi_device, swap_chain_images[i], swap_chain_image_views[i], rhi_context->surface_format.format, swizzle))
                     {
                         LOG_ERROR("Failed to create image view");
                         return false;
@@ -347,9 +348,9 @@ namespace Spartan
 		const std::shared_ptr<RHI_Device>& rhi_device,
 		const uint32_t width,
 		const uint32_t height,
-		const RHI_Format format				/*= Format_R8G8B8A8_UNORM */,
-		const RHI_Present_Mode present_mode	/*= Present_Off */,
-		const uint32_t buffer_count			/*= 1 */
+        const RHI_Format format		/*= Format_R8G8B8A8_UNORM */,
+        const uint32_t buffer_count	/*= 1 */,
+        const uint32_t flags		/*= Present_Immediate */
 	)
 	{
 		const auto hwnd = static_cast<HWND>(window_handle);
@@ -366,7 +367,7 @@ namespace Spartan
 		m_width			= width;
 		m_height		= height;
 		m_window_handle	= window_handle;
-		m_present_mode	= present_mode;
+        m_flags         = flags;
 
 		if (!CreateRenderPass())
 			return;
@@ -378,7 +379,7 @@ namespace Spartan
 			m_height,
 			m_buffer_count,
 			m_format,
-			m_present_mode,
+            m_flags,
 			m_window_handle,
 			m_render_pass,
 			m_surface,
@@ -437,7 +438,7 @@ namespace Spartan
 			m_height,
 			m_buffer_count,
 			m_format,
-			m_present_mode,
+			m_flags,
 			m_window_handle,
 			m_render_pass,
 			m_surface,

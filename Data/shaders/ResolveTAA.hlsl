@@ -23,8 +23,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Velocity.hlsl"
 //======================
 
-static const float g_blendMin = 0.01f;
-static const float g_blendMax = 0.8f;
+static const float g_blendMin = 0.0f;
+static const float g_blendMax = 0.2f;
 
 float3 clip_aabb(float3 aabb_min, float3 aabb_max, float3 p, float3 q)
 {
@@ -56,44 +56,49 @@ float4 ResolveTAA(float2 texCoord, Texture2D tex_history, Texture2D tex_current,
 	float2 texCoord_history = texCoord - velocity;
 	
 	// Get current and history colors
-	float3 color_current 	= tex_current.Sample(sampler_bilinear, texCoord).rgb;
-	float3 color_history 	= tex_history.Sample(sampler_bilinear, texCoord_history).rgb;
+	float3 color_current 	= Reinhard(tex_current.Sample(sampler_bilinear, texCoord).rgb);
+	float3 color_history 	= Reinhard(tex_history.Sample(sampler_bilinear, texCoord_history).rgb);
 
 	//= Sample neighbourhood ==============================================================================
 	float2 du = float2(g_texel_size.x, 0.0f);
 	float2 dv = float2(0.0f, g_texel_size.y);
 
-	float3 ctl = tex_current.Sample(sampler_bilinear, texCoord - dv - du).rgb;
-	float3 ctc = tex_current.Sample(sampler_bilinear, texCoord - dv).rgb;
-	float3 ctr = tex_current.Sample(sampler_bilinear, texCoord - dv + du).rgb;
-	float3 cml = tex_current.Sample(sampler_bilinear, texCoord - du).rgb;
-	float3 cmc = tex_current.Sample(sampler_bilinear, texCoord).rgb;
-	float3 cmr = tex_current.Sample(sampler_bilinear, texCoord + du).rgb;
-	float3 cbl = tex_current.Sample(sampler_bilinear, texCoord + dv - du).rgb;
-	float3 cbc = tex_current.Sample(sampler_bilinear, texCoord + dv).rgb;
-	float3 cbr = tex_current.Sample(sampler_bilinear, texCoord + dv + du).rgb;
+	float3 ctl = Reinhard(tex_current.Sample(sampler_bilinear, texCoord - dv - du).rgb);
+	float3 ctc = Reinhard(tex_current.Sample(sampler_bilinear, texCoord - dv).rgb);
+	float3 ctr = Reinhard(tex_current.Sample(sampler_bilinear, texCoord - dv + du).rgb);
+	float3 cml = Reinhard(tex_current.Sample(sampler_bilinear, texCoord - du).rgb);
+	float3 cmc = Reinhard(tex_current.Sample(sampler_bilinear, texCoord).rgb);
+	float3 cmr = Reinhard(tex_current.Sample(sampler_bilinear, texCoord + du).rgb);
+	float3 cbl = Reinhard( tex_current.Sample(sampler_bilinear, texCoord + dv - du).rgb);
+	float3 cbc = Reinhard(tex_current.Sample(sampler_bilinear, texCoord + dv).rgb);
+	float3 cbr = Reinhard(tex_current.Sample(sampler_bilinear, texCoord + dv + du).rgb);
 	
 	float3 color_min = min(ctl, min(ctc, min(ctr, min(cml, min(cmc, min(cmr, min(cbl, min(cbc, cbr))))))));
 	float3 color_max = max(ctl, max(ctc, max(ctr, max(cml, max(cmc, max(cmr, max(cbl, max(cbc, cbr))))))));
 	float3 color_avg = (ctl + ctc + ctr + cml + cmc + cmr + cbl + cbc + cbr) / 9.0f;
 	//=====================================================================================================
 	
+	// Increase blend factor when local contrast is low
+	float factor_contrast = 1.0f - saturate(length(abs(color_max - color_min)));
+
+	// Decrease blend factor when motion gets sub-pixel
+	float factor_subpixel = saturate(length(velocity * g_resolution));
+
+	// Decrease blend factor when history is near clamp
+	float factor_history = saturate(length(min(abs(color_history - color_min), abs(color_history - color_max))));
+
+	// Combine blend factors
+	float blend_factor	= (factor_contrast + factor_subpixel + factor_history) / 3.0f;
+	blend_factor 			= lerp(g_blendMin, g_blendMax, blend_factor);
+	
+	// Use max blend if the re-projected texcoord is out of screen
+	blend_factor = is_saturated(texCoord_history) ? blend_factor : 1.0f;
+	
 	// Clip to neighbourhood of current sample
 	color_history = clip_aabb(color_min, color_max, clamp(color_avg, color_min, color_max), color_history);
 
-	// Decrease blend factor when motion gets sub-pixel
-	float speed_limiter = 0.1f;
-	float factor_subpixel = saturate(length(velocity * g_resolution) * speed_limiter);
-	
-	// Compute blend factor (but simple use max blend if the re-projected texcoord is out of screen)
-	float blendfactor = is_saturated(texCoord_history) ? lerp(g_blendMin, g_blendMax, factor_subpixel) : 1.0f;
-	
-	// Tonemap
-	color_history = Reinhard(color_history);
-	color_current = Reinhard(color_current);
-	
 	// Resolve
-	float3 resolved = lerp(color_history, color_current, blendfactor);
+	float3 resolved = lerp(color_history, color_current, blend_factor);
 	
 	// Inverse tonemap
 	return float4(ReinhardInverse(resolved), 1.0f);

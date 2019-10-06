@@ -22,13 +22,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ===========================
 #include "IComponent.h"
 #include "Light.h"
-#include "Skybox.h"
+#include "Environment.h"
 #include "Script.h"
 #include "RigidBody.h"
 #include "Collider.h"
+#include "Constraint.h"
 #include "Camera.h"
 #include "AudioSource.h"
 #include "AudioListener.h"
+#include "Renderable.h"
+#include "Transform.h"
+#include "Terrain.h"
 #include "../Entity.h"
 #include "../../FileSystem/FileSystem.h"
 //======================================
@@ -39,32 +43,35 @@ using namespace std;
 
 namespace Spartan
 {
-	IComponent::IComponent(Context* context, Entity* entity, Transform* transform) : Spartan_Object()
-	{
-		m_context	= context;
-		m_entity	= entity;
-		m_transform	= transform;
-		m_enabled	= true;
-	}
+    IComponent::IComponent(Context* context, Entity* entity, uint32_t id /*= 0*/, Transform* transform /*= nullptr*/)
+    {
+        m_context   = context;
+        m_entity    = entity;
+        m_transform = transform ? transform : entity->GetTransform_PtrRaw();
+        m_enabled   = true;
+    }
 
-	shared_ptr<Entity> IComponent::GetEntity_PtrShared() const
+    shared_ptr<Entity> IComponent::GetEntity_PtrShared() const
 	{
 		return m_entity->GetPtrShared();
 	}
 
-	const string& IComponent::GetEntityName() const
+	string IComponent::GetEntityName() const
 	{
 		if (!m_entity)
-			return NOT_ASSIGNED;
+			return "";
 
 		return m_entity->GetName();
 	}
 
 	template <typename T>
-	constexpr ComponentType IComponent::TypeToEnum() { return ComponentType_Unknown; }
+    inline constexpr ComponentType IComponent::TypeToEnum() { return ComponentType_Unknown; }
+
+    template<typename T>
+    inline constexpr void validate_component_type() { static_assert(std::is_base_of<IComponent, T>::value, "Provided type does not implement IComponent"); }
 
 	// Explicit template instantiation
-	#define REGISTER_COMPONENT(T, enumT) template<> SPARTAN_CLASS ComponentType IComponent::TypeToEnum<T>() { return enumT; }
+	#define REGISTER_COMPONENT(T, enumT) template<> SPARTAN_CLASS ComponentType IComponent::TypeToEnum<T>() { validate_component_type<T>(); return enumT; }
 
 	// To add a new component to the engine, simply register it here
 	REGISTER_COMPONENT(AudioListener,	ComponentType_AudioListener)
@@ -76,6 +83,7 @@ namespace Spartan
 	REGISTER_COMPONENT(Renderable,		ComponentType_Renderable)
 	REGISTER_COMPONENT(RigidBody,		ComponentType_RigidBody)
 	REGISTER_COMPONENT(Script,			ComponentType_Script)
-	REGISTER_COMPONENT(Skybox,			ComponentType_Skybox)
+	REGISTER_COMPONENT(Environment,		ComponentType_Environment)
+    REGISTER_COMPONENT(Terrain,         ComponentType_Terrain)
 	REGISTER_COMPONENT(Transform,		ComponentType_Transform)
 }

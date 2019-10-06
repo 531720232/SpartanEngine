@@ -83,6 +83,9 @@ namespace Spartan
 
 	bool ModelImporter::Load(Model* model, const string& file_path)
 	{
+        const uint32_t triangle_limit   = 1000000;
+        const uint32_t vertex_limit     = 1000000;
+
 		if (!m_context)
 		{
 			LOG_ERROR_INVALID_INTERNALS();
@@ -97,11 +100,9 @@ namespace Spartan
 		importer.SetPropertyFloat(AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE, _ModelImporter::max_normal_smoothing_angle);
 		// Set tangent smoothing angle
 		importer.SetPropertyFloat(AI_CONFIG_PP_CT_MAX_SMOOTHING_ANGLE, _ModelImporter::max_tangent_smoothing_angle);	
-		// Maximum number of triangles in a mesh (before splitting)
-		const uint32_t triangle_limit = 1000000;
+		// Maximum number of triangles in a mesh (before splitting)	
 		importer.SetPropertyInteger(AI_CONFIG_PP_SLM_TRIANGLE_LIMIT, triangle_limit);
-		// Maximum number of vertices in a mesh (before splitting)
-		const uint32_t vertex_limit = 1000000;
+		// Maximum number of vertices in a mesh (before splitting)	
 		importer.SetPropertyInteger(AI_CONFIG_PP_SLM_VERTEX_LIMIT, vertex_limit);
 		// Remove points and lines.
 		importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);	
@@ -121,7 +122,7 @@ namespace Spartan
 			FIRE_EVENT(Event_World_Stop);
 			ReadNodeHierarchy(scene, scene->mRootNode, model);
 			ReadAnimations(scene, model);
-			model->GeometryUpdate();
+			model->UpdateGeometry();
 			FIRE_EVENT(Event_World_Start);
 		}
 		else
@@ -136,26 +137,28 @@ namespace Spartan
 
 	void ModelImporter::ReadNodeHierarchy(const aiScene* assimp_scene, aiNode* assimp_node, Model* model, Entity* parent_node, Entity* new_entity)
 	{
+        bool is_new_entity_active = false;
+
 		// Is this the root node?
 		if (!assimp_node->mParent || !new_entity)
 		{
-			new_entity = m_world->EntityCreate().get();
-			model->SetRootentity(new_entity->GetPtrShared());
+			new_entity = m_world->EntityCreate(is_new_entity_active).get();
+			model->SetRootEntity(new_entity->GetPtrShared());
 
 			int job_count;
 			AssimpHelper::compute_node_count(assimp_node, &job_count);
 			ProgressReport::Get().SetJobCount(g_progress_model_importer, job_count);
 		}
 
-		//= GET NODE NAME ==========================================================================================================================
+		//= GET NODE NAME =================================================================================================================================
 		// In case this is the root node, aiNode.mName will be "RootNode". 
 		// To get a more descriptive name we instead get the name from the file path.
 		const auto name = assimp_node->mParent ? assimp_node->mName.C_Str() : FileSystem::GetFileNameNoExtensionFromFilePath(_ModelImporter::m_model_path);
 		new_entity->SetName(name);
 		ProgressReport::Get().SetStatus(g_progress_model_importer, "Creating entity for " + name);
-		//==========================================================================================================================================
+		//=================================================================================================================================================
 
-		// Set the transform of parentNode as the parent of the newNode's transform
+		// Set the transform of parent_node as the parent of the new_entity's transform
 		const auto parent_trans = parent_node ? parent_node->GetTransform_PtrRaw() : nullptr;
 		new_entity->GetTransform_PtrRaw()->SetParent(parent_trans);
 
@@ -172,7 +175,7 @@ namespace Spartan
 			// if this node has many meshes, then assign a new entity for each one of them
 			if (assimp_node->mNumMeshes > 1)
 			{
-				entity = m_world->EntityCreate().get(); // create
+				entity = m_world->EntityCreate(is_new_entity_active).get(); // create
 				entity->GetTransform_PtrRaw()->SetParent(new_entity->GetTransform_PtrRaw()); // set parent
 				_name += "_" + to_string(i + 1); // set name
 			}
@@ -182,6 +185,7 @@ namespace Spartan
 
 			// Process mesh
 			LoadMesh(assimp_scene, assimp_mesh, model, entity);
+            entity->SetActive(true);
 		}
 
 		// Process children
@@ -207,7 +211,7 @@ namespace Spartan
 			animation->SetTicksPerSec(assimp_animation->mTicksPerSecond != 0.0f ? assimp_animation->mTicksPerSecond : 25.0f);
 
 			// Animation channels
-			for (uint32_t j = 0; j > assimp_animation->mNumChannels; j++)
+			for (uint32_t j = 0; j < static_cast<uint32_t>(assimp_animation->mNumChannels); j++)
 			{
 				const auto assimp_node_anim = assimp_animation->mChannels[j];
 				AnimationNode animation_node;
@@ -215,7 +219,7 @@ namespace Spartan
 				animation_node.name = assimp_node_anim->mNodeName.C_Str();
 
 				// Position keys
-				for (uint32_t k = 0; k < assimp_node_anim->mNumPositionKeys; k++)
+				for (uint32_t k = 0; k < static_cast<uint32_t>(assimp_node_anim->mNumPositionKeys); k++)
 				{
 					const auto time = assimp_node_anim->mPositionKeys[k].mTime;
 					const auto value = AssimpHelper::to_vector3(assimp_node_anim->mPositionKeys[k].mValue);
@@ -224,7 +228,7 @@ namespace Spartan
 				}
 
 				// Rotation keys
-				for (uint32_t k = 0; k < assimp_node_anim->mNumRotationKeys; k++)
+				for (uint32_t k = 0; k < static_cast<uint32_t>(assimp_node_anim->mNumRotationKeys); k++)
 				{
 					const auto time = assimp_node_anim->mPositionKeys[k].mTime;
 					const auto value = AssimpHelper::to_quaternion(assimp_node_anim->mRotationKeys[k].mValue);
@@ -233,7 +237,7 @@ namespace Spartan
 				}
 
 				// Scaling keys
-				for (uint32_t k = 0; k < assimp_node_anim->mNumScalingKeys; k++)
+				for (uint32_t k = 0; k < static_cast<uint32_t>(assimp_node_anim->mNumScalingKeys); k++)
 				{
 					const auto time = assimp_node_anim->mPositionKeys[k].mTime;
 					const auto value = AssimpHelper::to_vector3(assimp_node_anim->mScalingKeys[k].mValue);
@@ -254,14 +258,12 @@ namespace Spartan
 			return;
 		}
 
-		// Vertices
-		vector<RHI_Vertex_PosTexNorTan> vertices;
-		{
-			// Pre-allocate for extra performance
-			const auto vertex_count = assimp_mesh->mNumVertices;
-			vertices.reserve(vertex_count);
-			vertices.resize(vertex_count);
+        const uint32_t vertex_count = assimp_mesh->mNumVertices;
+        const uint32_t index_count  = assimp_mesh->mNumFaces * 3;
 
+		// Vertices
+        vector<RHI_Vertex_PosTexNorTan> vertices = vector<RHI_Vertex_PosTexNorTan>(vertex_count);
+		{
 			for (uint32_t i = 0; i < vertex_count; i++)
 			{
 				auto& vertex = vertices[i];
@@ -302,13 +304,8 @@ namespace Spartan
 		}
 
 		// Indices
-		vector<uint32_t> indices;
+		vector<uint32_t> indices = vector<uint32_t>(index_count);
 		{
-			// Pre-allocate for extra performance
-			const auto index_count = assimp_mesh->mNumFaces * 3;
-			indices.reserve(index_count);
-			indices.resize(index_count);
-
 			// Get indices by iterating through each face of the mesh.
 			for (uint32_t face_index = 0; face_index < assimp_mesh->mNumFaces; face_index++)
 			{
@@ -327,7 +324,7 @@ namespace Spartan
 		// Add the mesh to the model
 		uint32_t index_offset;
 		uint32_t vertex_offset;
-		model->GeometryAppend(move(indices), move(vertices), &index_offset, &vertex_offset);
+		model->AppendGeometry(move(indices), move(vertices), &index_offset, &vertex_offset);
 
 		// Add a renderable component to this entity
 		auto renderable	= entity_parent->AddComponent<Renderable>();
@@ -372,7 +369,8 @@ namespace Spartan
 		// NAME
 		aiString name;
 		aiGetMaterialString(assimp_material, AI_MATKEY_NAME, &name);
-		material->SetResourceName(name.C_Str());
+        // Set a resource file path so it can be used by the resource cache
+		material->SetResourceFilePath(FileSystem::GetDirectoryFromFilePath(_ModelImporter::m_model_path) + string(name.C_Str()) + EXTENSION_MATERIAL);
 
 		// CULL MODE
 		// Specifies whether meshes using this material must be rendered 
@@ -420,16 +418,22 @@ namespace Spartan
 						// auto textureType others pass a height map as a normal map, we try to fix that.
 						if (type_spartan == TextureType_Normal || type_spartan == TextureType_Height)
 						{
-							const auto texture = material->GetTexture(type_spartan);							
-							auto proper_type = type_spartan;
-							proper_type = (proper_type == TextureType_Normal && texture->GetGrayscale()) ? TextureType_Height : proper_type;
-							proper_type = (proper_type == TextureType_Height && !texture->GetGrayscale()) ? TextureType_Normal : proper_type;
+                            if (const auto texture = material->GetTexture(type_spartan))
+                            {
+                                auto proper_type = type_spartan;
+                                proper_type = (proper_type == TextureType_Normal && texture->GetGrayscale()) ? TextureType_Height : proper_type;
+                                proper_type = (proper_type == TextureType_Height && !texture->GetGrayscale()) ? TextureType_Normal : proper_type;
 
-							if (proper_type != type_spartan)
-							{
-								material->SetTextureSlot(type_spartan, shared_ptr<RHI_Texture>());
-								material->SetTextureSlot(proper_type, texture);
-							}
+                                if (proper_type != type_spartan)
+                                {
+                                    material->SetTextureSlot(type_spartan, shared_ptr<RHI_Texture>());
+                                    material->SetTextureSlot(proper_type, texture);
+                                }
+                            }
+                            else
+                            {
+                                LOG_ERROR("Failed to get texture");
+                            }
 						}
 					}
 				}

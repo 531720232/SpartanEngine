@@ -35,7 +35,6 @@ namespace Spartan
 {
 	Profiler::Profiler(Context* context) : ISubsystem(context)
 	{
-		m_metrics = NOT_ASSIGNED;
 		m_time_blocks.reserve(m_time_block_capacity);
 		m_time_blocks.resize(m_time_block_capacity);
 	}
@@ -93,7 +92,7 @@ namespace Spartan
             m_gpu_memory_used = m_renderer->GetRhiDevice()->ProfilingGetGpuMemoryUsage();
 
             // Create a string version of the rhi metrics
-            if (m_renderer->Flags_IsSet(Render_Gizmo_PerformanceMetrics))
+            if (m_renderer->GetFlags() & Render_Debug_PerformanceMetrics)
             {
                 UpdateRhiMetricsString();
             }
@@ -137,6 +136,7 @@ namespace Spartan
         }
 
         m_time_blocks_read = m_time_blocks;
+        DetectStutter();
     }
 
     bool Profiler::TimeBlockStart(const string& func_name, bool profile_cpu /*= true*/, bool profile_gpu /*= false*/)
@@ -153,7 +153,7 @@ namespace Spartan
 		if (auto time_block = GetNextTimeBlock())
 		{
 			auto time_block_parent = GetSecondLastIncompleteTimeBlock();
-			time_block->Start(func_name, can_profile_cpu, can_profile_gpu, time_block_parent, m_renderer->GetRhiDevice());
+			time_block->Begin(func_name, can_profile_cpu, can_profile_gpu, time_block_parent, m_renderer->GetRhiDevice());
 		}
 
 		return true;
@@ -172,7 +172,19 @@ namespace Spartan
 		return true;
 	}
 
-	TimeBlock* Profiler::GetNextTimeBlock()
+    void Profiler::DetectStutter()
+    {
+        // Detect
+        m_is_stuttering_cpu = m_time_cpu_ms > (m_cpu_avg_ms + m_stutter_delta_ms);
+        m_is_stuttering_gpu = m_time_gpu_ms > (m_gpu_avg_ms + m_stutter_delta_ms);
+
+        // Accumulate
+        double delta_feedback = 1.0 / m_frames_to_accumulate;
+        m_cpu_avg_ms = m_cpu_avg_ms * (1.0 - delta_feedback) + m_time_cpu_ms * delta_feedback;
+        m_gpu_avg_ms = m_gpu_avg_ms * (1.0 - delta_feedback) + m_time_gpu_ms * delta_feedback;
+    }
+
+    TimeBlock* Profiler::GetNextTimeBlock()
 	{
 		// Grow capacity if needed
 		if (m_time_block_count >= static_cast<uint32_t>(m_time_blocks.size()))
@@ -265,6 +277,7 @@ namespace Spartan
 			"RHI Texture bindings:\t\t\t%d\n"
 			"RHI Vertex Shader bindings:\t\t%d\n"
 			"RHI Pixel Shader bindings:\t\t%d\n"
+            "RHI Compute Shader bindings:\t%d\n"
 			"RHI Render Target bindings:\t\t%d",
 			
 			// Performance
@@ -288,8 +301,9 @@ namespace Spartan
 			m_rhi_bindings_buffer_constant,
 			m_rhi_bindings_sampler,
 			m_rhi_bindings_texture,
-			m_rhi_bindings_vertex_shader,
-			m_rhi_bindings_pixel_shader,
+			m_rhi_bindings_shader_vertex,
+			m_rhi_bindings_shader_pixel,
+            m_rhi_bindings_shader_compute,
 			m_rhi_bindings_render_target
 		);
 

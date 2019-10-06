@@ -19,34 +19,30 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-//= INCLUDES =====================================
+//= INCLUDES ======
 #include "Window.h"
 #include "Editor.h"
-#include "ImGui/Implementation/imgui_impl_win32.h"
-//================================================
+//=================
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	std::unique_ptr<Editor> editor;
+    // Create editor
+    Editor editor;
 
 	// Create window
-	Window::g_OnMessage = ImGui_ImplWin32_WndProcHandler;
-	Window::g_onResize	= [&editor](unsigned int width, unsigned int height) { if (editor) editor->Resize(width, height); };
 	Window::Create(hInstance, "Spartan " + std::string(engine_version));	
-
-	// Create editor
-	float width, height; Window::GetWindowSize(&width, &height);
-	editor = std::make_unique<Editor>(Window::g_handle, hInstance, width, height);
-
-	// Show window
 	Window::Show();
 
-    // Tick
-	while (Window::Tick()) 
-	{ 
-		editor->Tick();
-	}
+    // Hook it up with the editor
+    Window::g_on_message = [&editor](Spartan::WindowData& window_data) { editor.OnWindowMessage(window_data); };
 
+    // Tick
+    while (Window::Tick())
+    {
+        editor.OnTick();
+    }
+
+    // Exit
 	Window::Destroy();
     return 0;
 }

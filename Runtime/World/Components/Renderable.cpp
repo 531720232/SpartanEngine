@@ -22,10 +22,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ==================================
 #include "Renderable.h"
 #include "Transform.h"
+#include "../../Rendering/Model.h"
 #include "../../IO/FileStream.h"
 #include "../../Resource/ResourceCache.h"
-#include "../../Rendering/Model.h"
-#include "../../Rendering/Material.h"
 #include "../../Rendering/Utilities/Geometry.h"
 //=============================================
 
@@ -42,38 +41,40 @@ namespace Spartan
 		vector<RHI_Vertex_PosTexNorTan> vertices;
 		vector<uint32_t> indices;
 
+        string project_directory = renderable->GetContext()->GetSubsystem<ResourceCache>()->GetProjectDirectory();
+
 		// Construct geometry
 		if (type == Geometry_Default_Cube)
 		{
 			Utility::Geometry::CreateCube(&vertices, &indices);		
-			model->SetResourceName("Default_Cube");
+			model->SetResourceFilePath(project_directory + "default_cube" + EXTENSION_MODEL);
 		}
 		else if (type == Geometry_Default_Quad)
 		{
 			Utility::Geometry::CreateQuad(&vertices, &indices);
-			model->SetResourceName("Default_Cube");
+			model->SetResourceFilePath(project_directory + "default_quad" + EXTENSION_MODEL);
 		}
 		else if (type == Geometry_Default_Sphere)
 		{
 			Utility::Geometry::CreateSphere(&vertices, &indices);
-			model->SetResourceName("Default_Cube");
+			model->SetResourceFilePath(project_directory + "default_sphere" + EXTENSION_MODEL);
 		}
 		else if (type == Geometry_Default_Cylinder)
 		{
 			Utility::Geometry::CreateCylinder(&vertices, &indices);
-			model->SetResourceName("Default_Cube");
+			model->SetResourceFilePath(project_directory + "default_cylinder" + EXTENSION_MODEL);
 		}
 		else if (type == Geometry_Default_Cone)
 		{
 			Utility::Geometry::CreateCone(&vertices, &indices);
-			model->SetResourceName("Default_Cube");
+			model->SetResourceFilePath(project_directory + "default_cone" + EXTENSION_MODEL);
 		}
 
 		if (vertices.empty() || indices.empty())
 			return;
 
-		model->GeometryAppend(indices, vertices, nullptr, nullptr);
-		model->GeometryUpdate();
+		model->AppendGeometry(indices, vertices, nullptr, nullptr);
+		model->UpdateGeometry();
 
 		renderable->GeometrySet(
 			"Default_Geometry",
@@ -86,32 +87,31 @@ namespace Spartan
 		);
 	}
 
-	Renderable::Renderable(Context* context, Entity* entity, Transform* transform) : IComponent(context, entity, transform)
+	Renderable::Renderable(Context* context, Entity* entity, uint32_t id /*= 0*/) : IComponent(context, entity, id)
 	{
 		m_geometry_type			= Geometry_Custom;	
 		m_geometryIndexOffset	= 0;
 		m_geometryIndexCount	= 0;
 		m_geometryVertexOffset	= 0;
 		m_geometryVertexCount	= 0;
-		m_materialDefault		= false;
+		m_material_default		= false;
 		m_castShadows			= true;
 		m_receiveShadows		= true;
 
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_materialDefault, bool);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_material, shared_ptr<Material>);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_castShadows, bool);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_receiveShadows, bool);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryIndexOffset, uint32_t);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryIndexCount, uint32_t);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryVertexOffset, uint32_t);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryVertexCount, uint32_t);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryName, string);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_model, shared_ptr<Model>);
-		REGISTER_ATTRIBUTE_VALUE_VALUE(m_bounding_box, BoundingBox);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_material_default,       bool);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_material,              shared_ptr<Material>);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_castShadows,           bool);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_receiveShadows,        bool);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryIndexOffset,   uint32_t);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryIndexCount,    uint32_t);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryVertexOffset,  uint32_t);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryVertexCount,   uint32_t);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_geometryName,          string);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_model,                 shared_ptr<Model>);
+		REGISTER_ATTRIBUTE_VALUE_VALUE(m_bounding_box,          BoundingBox);
 		REGISTER_ATTRIBUTE_GET_SET(Geometry_Type, GeometrySet, Geometry_Type);
 	}
 
-	//= ICOMPONENT ===============================================================
 	void Renderable::Serialize(FileStream* stream)
 	{
 		// Mesh
@@ -121,15 +121,15 @@ namespace Spartan
 		stream->Write(m_geometryVertexOffset);
 		stream->Write(m_geometryVertexCount);
 		stream->Write(m_bounding_box);
-		stream->Write(m_model ? m_model->GetResourceName() : NOT_ASSIGNED);
+		stream->Write(m_model ? m_model->GetResourceName() : "");
 
 		// Material
 		stream->Write(m_castShadows);
 		stream->Write(m_receiveShadows);
-		stream->Write(m_materialDefault);
-		if (!m_materialDefault)
+		stream->Write(m_material_default);
+		if (!m_material_default)
 		{
-			stream->Write(m_material ? m_material->GetResourceName() : NOT_ASSIGNED);
+			stream->Write(m_material ? m_material->GetResourceName() : "");
 		}
 	}
 
@@ -155,8 +155,8 @@ namespace Spartan
 		// Material
 		stream->Read(&m_castShadows);
 		stream->Read(&m_receiveShadows);
-		stream->Read(&m_materialDefault);
-		if (m_materialDefault)
+		stream->Read(&m_material_default);
+		if (m_material_default)
 		{
 			UseDefaultMaterial();		
 		}
@@ -167,9 +167,7 @@ namespace Spartan
 			m_material = m_context->GetSubsystem<ResourceCache>()->GetByName<Material>(material_name);
 		}
 	}
-	//==============================================================================
 
-	//= GEOMETRY =====================================================================================
 	void Renderable::GeometrySet(const string& name, const uint32_t index_offset, const uint32_t index_count, const uint32_t vertex_offset, const uint32_t vertex_count, const BoundingBox& bounding_box, Model* model)
 	{	
 		m_geometryName			= name;
@@ -178,7 +176,7 @@ namespace Spartan
 		m_geometryVertexOffset	= vertex_offset;
 		m_geometryVertexCount	= vertex_count;
 		m_bounding_box			= bounding_box;
-		m_model					= model->GetSharedPtr();
+		m_model					= model ? model->GetSharedPtr() : nullptr;
 	}
 
 	void Renderable::GeometrySet(const Geometry_Type type)
@@ -191,6 +189,11 @@ namespace Spartan
 		}
 	}
 
+    void Renderable::GeometryClear()
+    {
+        GeometrySet("Cleared", 0, 0, 0, 0, BoundingBox(), nullptr);
+    }
+
 	void Renderable::GeometryGet(vector<uint32_t>* indices, vector<RHI_Vertex_PosTexNorTan>* vertices) const
 	{
 		if (!m_model)
@@ -199,10 +202,10 @@ namespace Spartan
 			return;
 		}
 
-		m_model->GeometryGet(m_geometryIndexOffset, m_geometryIndexCount, m_geometryVertexOffset, m_geometryVertexCount, indices, vertices);
+		m_model->GetGeometry(m_geometryIndexOffset, m_geometryIndexCount, m_geometryVertexOffset, m_geometryVertexCount, indices, vertices);
 	}
 
-	const BoundingBox& Renderable::GetAabb()
+    const BoundingBox& Renderable::GetAabb()
 	{
         if (m_last_transform != GetTransform()->GetMatrix())
         {
@@ -218,37 +221,23 @@ namespace Spartan
 		return m_aabb;
 	}
 
-    const BoundingBox& Renderable::GetOobb()
-    {
-        if (m_last_transform != GetTransform()->GetMatrix())
-        {
-            m_is_dirty = true;
-        }
-
-        if (m_is_dirty)
-        {
-            m_oobb = m_bounding_box.TransformToOobb(GetTransform()->GetMatrix());
-            m_last_transform = GetTransform()->GetMatrix();
-        }
-
-        return m_oobb;
-    }
-
-    //==============================================================================
-
-	//= MATERIAL ===================================================================
 	// All functions (set/load) resolve to this
-	void Renderable::MaterialSet(const shared_ptr<Material>& material)
+	void Renderable::SetMaterial(const shared_ptr<Material>& material)
 	{
 		if (!material)
 		{
 			LOG_ERROR_INVALID_PARAMETER();
 			return;
 		}
-		m_material = material;
+
+        // In order for the component to guarantee serialization/deserialization, we cache the material
+		m_material = m_context->GetSubsystem<ResourceCache>()->Cache(material);
+
+        // Set to false otherwise material won't serialize/deserialize
+        m_material_default = false;
 	}
 
-	shared_ptr<Material> Renderable::MaterialSet(const string& file_path)
+	shared_ptr<Material> Renderable::SetMaterial(const string& file_path)
 	{
 		// Load the material
 		auto material = make_shared<Material>(GetContext());
@@ -259,29 +248,32 @@ namespace Spartan
 		}
 
 		// Set it as the current material
-		MaterialSet(material);
+		SetMaterial(material);
 
 		// Return it
-		return material;
+		return m_material;
 	}
 
 	void Renderable::UseDefaultMaterial()
 	{
-		m_materialDefault = true;
+		m_material_default = true;
 
-		auto data_dir = GetContext()->GetSubsystem<ResourceCache>()->GetDataDirectory();
+        ResourceCache* resource_cache = GetContext()->GetSubsystem<ResourceCache>().get();
+
+		auto data_dir = resource_cache->GetDataDirectory();
 		FileSystem::CreateDirectory_(data_dir);
-		auto materialStandard = make_shared<Material>(GetContext());
-		materialStandard->SetResourceName("Standard");
-		materialStandard->SetCullMode(Cull_Back);
-		materialStandard->SetColorAlbedo(Vector4(0.6f, 0.6f, 0.6f, 1.0f));
-		materialStandard->SetIsEditable(false);		
-		MaterialSet(materialStandard);
+		auto material = make_shared<Material>(GetContext());
+        // Set resource file path so it can be used by the resource cache
+        material->SetResourceFilePath(resource_cache->GetProjectDirectory() + "standard" + EXTENSION_MATERIAL);
+		material->SetCullMode(Cull_Back);
+		material->SetColorAlbedo(Vector4(0.6f, 0.6f, 0.6f, 1.0f));
+		material->SetIsEditable(false);		
+		SetMaterial(material);
+        m_material_default = true;
 	}
 
-	const string& Renderable::GetMaterialName()
+	string Renderable::GetMaterialName()
 	{
-		return m_material ? m_material->GetResourceName() : NOT_ASSIGNED;
+		return m_material ? m_material->GetResourceName() : "";
 	}
-	//==============================================================================
 }

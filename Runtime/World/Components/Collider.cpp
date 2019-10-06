@@ -45,12 +45,12 @@ using namespace std;
 
 namespace Spartan
 {
-	Collider::Collider(Context* context, Entity* entity, Transform* transform) : IComponent(context, entity, transform)
+	Collider::Collider(Context* context, Entity* entity, uint32_t id /*= 0*/) : IComponent(context, entity, id)
 	{
 		m_shapeType = ColliderShape_Box;
 		m_center	= Vector3::Zero;
 		m_size		= Vector3::One;
-		m_shape			= nullptr;
+		m_shape		= nullptr;
 
 		REGISTER_ATTRIBUTE_VALUE_VALUE(m_size, Vector3);
 		REGISTER_ATTRIBUTE_VALUE_VALUE(m_center, Vector3);
@@ -204,7 +204,7 @@ namespace Spartan
 			m_shape = new btConvexHullShape(
 				(btScalar*)&vertices[0],					// points
 				renderable->GeometryVertexCount(),			// point count
-				(uint32_t)sizeof(RHI_Vertex_PosTexNorTan));	// stride
+				static_cast<uint32_t>(sizeof(RHI_Vertex_PosTexNorTan)));	// stride
 
 			// Scaling has to be done before (potential) optimization
 			m_shape->setLocalScaling(ToBtVector3(worldScale));
@@ -212,7 +212,7 @@ namespace Spartan
 			// Optimize if requested
 			if (m_optimize)
 			{
-				auto hull = (btConvexHullShape*)m_shape;
+				auto hull = static_cast<btConvexHullShape*>(m_shape);
 				hull->optimizeConvexHull();
 				hull->initializePolyhedralFeatures();
 			}

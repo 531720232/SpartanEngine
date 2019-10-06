@@ -19,12 +19,13 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-//= INCLUDES =========================
+//= INCLUDES ================================
 #include "RHI_Texture.h"
 #include "../IO/FileStream.h"
 #include "../Rendering/Renderer.h"
 #include "../Resource/ResourceCache.h"
-//====================================
+#include "../Resource/Import/ImageImporter.h"
+//===========================================
 
 //= NAMESPACES =====
 using namespace std;
@@ -101,17 +102,13 @@ namespace Spartan
 		file->Write(m_is_grayscale);
 		file->Write(m_is_transparent);
 		file->Write(GetId());
-		file->Write(GetResourceName());
 		file->Write(GetResourceFilePath());
 
 		return true;
 	}
 
-	bool RHI_Texture::LoadFromFile(const string& rawFilePath)
+	bool RHI_Texture::LoadFromFile(const string& file_path)
 	{
-		// Make the path relative to the engine
-		const auto file_path = FileSystem::GetRelativeFilePath(rawFilePath);
-
 		// Validate file path
 		if (!FileSystem::FileExists(file_path))
 		{
@@ -144,13 +141,13 @@ namespace Spartan
 		// Create GPU resource
 		if (!CreateResourceGpu())
 		{
-			LOGF_ERROR("Failed to create shader resource for \"%s\".", GetResourceFilePath().c_str());
+			LOGF_ERROR("Failed to create shader resource for \"%s\".", GetResourceFilePathNative().c_str());
 			m_load_state = LoadState_Failed;
 			return false;
 		}
 
 		// Only clear texture bytes if that's an engine texture, if not, it's not serialized yet.
-		if (FileSystem::IsEngineTextureFile(file_path)) 
+		if (FileSystem::IsEngineTextureFile(file_path))
 		{
 			m_data.clear();
 			m_data.shrink_to_fit();
@@ -170,16 +167,55 @@ namespace Spartan
 		return &m_data[index];
 	}
 
-	bool RHI_Texture::LoadFromFile_ForeignFormat(const string& file_path, const bool generate_mipmaps)
+    vector<std::byte> RHI_Texture::GetMipmap(uint32_t index)
+    {
+        vector<std::byte> data;
+
+        // Use existing data, if it's there
+        if (index < m_data.size())
+        {
+            data = m_data[index];
+        }
+        // Else attempt to load the data
+        else
+        {
+            auto file = make_unique<FileStream>(GetResourceFilePathNative(), FileStream_Read);
+            if (file->IsOpen())
+            {
+                auto byte_count = file->ReadAs<uint32_t>();
+                auto mip_count  = file->ReadAs<uint32_t>();
+
+                if (index < mip_count)
+                {
+                    for (uint32_t i = 0; i <= index; i++)
+                    {
+                        file->Read(&data);
+                    }
+                }
+                else
+                {
+                    LOG_ERROR("Invalid index");
+                }
+                file->Close();
+            }
+            else
+            {
+                LOG_ERROR("Unable to retreive data");
+            }
+        }
+
+        return data;
+    }
+
+    bool RHI_Texture::LoadFromFile_ForeignFormat(const string& file_path, const bool generate_mipmaps)
 	{
 		// Load texture
-		auto imageImp = m_context->GetSubsystem<ResourceCache>()->GetImageImporter();	
-		if (!imageImp->Load(file_path, this, generate_mipmaps))
+		ImageImporter* importer = m_context->GetSubsystem<ResourceCache>()->GetImageImporter();	
+		if (!importer->Load(file_path, this, generate_mipmaps))
 			return false;
 
-		// Change texture extension to an engine texture
-		SetResourceFilePath(FileSystem::GetFilePathWithoutExtension(file_path) + EXTENSION_TEXTURE);
-		SetResourceName(FileSystem::GetFileNameNoExtensionFromFilePath(GetResourceFilePath()));
+		// Set resource file path so it can be used by the resource cache
+		SetResourceFilePath(file_path);
 
 		return true;
 	}
@@ -194,11 +230,11 @@ namespace Spartan
 		m_data.shrink_to_fit();
 
 		// Read byte and mipmap count
-		auto byte_count		= file->ReadAs<uint32_t>();
-		auto mipmap_count	= file->ReadAs<uint32_t>();
+		auto byte_count = file->ReadAs<uint32_t>();
+        auto mip_count  = file->ReadAs<uint32_t>();
 
 		// Read bytes
-		m_data.resize(mipmap_count);
+		m_data.resize(mip_count);
 		for (auto& mip : m_data)
 		{
 			file->Read(&mip);
@@ -212,7 +248,6 @@ namespace Spartan
 		file->Read(&m_is_grayscale);
 		file->Read(&m_is_transparent);
 		SetId(file->ReadAs<uint32_t>());
-		SetResourceName(file->ReadAs<string>());
 		SetResourceFilePath(file->ReadAs<string>());
 
 		return true;
@@ -251,5 +286,4 @@ namespace Spartan
 
 		return byte_count;
 	}
-
 }

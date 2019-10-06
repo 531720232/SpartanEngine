@@ -22,7 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES =========================
 #include "Material.h"
 #include "Renderer.h"
-#include "Deferred/ShaderVariation.h"
+#include "Shaders/ShaderVariation.h"
 #include "../Resource/ResourceCache.h"
 #include "../IO/XmlDocument.h"
 #include "../RHI/RHI_ConstantBuffer.h"
@@ -30,10 +30,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../RHI/RHI_TextureCube.h"
 //====================================
 
-//= NAMESPACES ================
+//= NAMESPACES ===============
 using namespace std;
 using namespace Spartan::Math;
-//=============================
+//============================
 
 namespace Spartan
 {
@@ -42,7 +42,7 @@ namespace Spartan
 		m_rhi_device = context->GetSubsystem<Renderer>()->GetRhiDevice();
 
 		// Initialize properties
-		SetMultiplier(TextureType_Roughness, 1.0f);
+		SetMultiplier(TextureType_Roughness, 0.9f);
 		SetMultiplier(TextureType_Metallic, 0.0f);
 		SetMultiplier(TextureType_Normal, 0.0f);
 		SetMultiplier(TextureType_Height, 0.0f);
@@ -56,25 +56,22 @@ namespace Spartan
 	}
 
 	//= IResource ==============================================
-	bool Material::LoadFromFile(const std::string& file_path)
+	bool Material::LoadFromFile(const string& file_path)
 	{
-		// Make sure the path is relative
-		SetResourceFilePath(FileSystem::GetRelativeFilePath(file_path));
-
 		auto xml = make_unique<XmlDocument>();
-		if (!xml->Load(GetResourceFilePath()))
+		if (!xml->Load(file_path))
 			return false;
 
-		SetResourceName(xml->GetAttributeAs<string>("Material",	"Name"));
-		SetResourceFilePath(xml->GetAttributeAs<string>("Material",	"Path"));
+		SetResourceFilePath(file_path);
+
+        xml->GetAttribute("Material", "Cull_Mode",              reinterpret_cast<uint32_t*>(&m_cull_mode));
+        xml->GetAttribute("Material", "Shading_Mode",           reinterpret_cast<uint32_t*>(&m_shading_mode));
+        xml->GetAttribute("Material", "Color",                  &m_color_albedo);
 		xml->GetAttribute("Material", "Roughness_Multiplier",	&GetMultiplier(TextureType_Roughness));
 		xml->GetAttribute("Material", "Metallic_Multiplier",	&GetMultiplier(TextureType_Metallic));
 		xml->GetAttribute("Material", "Normal_Multiplier",		&GetMultiplier(TextureType_Normal));
 		xml->GetAttribute("Material", "Height_Multiplier",		&GetMultiplier(TextureType_Height));
 		xml->GetAttribute("Material", "IsEditable",				&m_is_editable);
-		xml->GetAttribute("Material", "Cull_Mode",				reinterpret_cast<uint32_t*>(&m_cull_mode));
-		xml->GetAttribute("Material", "Shading_Mode",			reinterpret_cast<uint32_t*>(&m_shading_mode));
-		xml->GetAttribute("Material", "Color",					&m_color_albedo);
 		xml->GetAttribute("Material", "UV_Tiling",				&m_uv_tiling);
 		xml->GetAttribute("Material", "UV_Offset",				&m_uv_offset);
 
@@ -101,21 +98,12 @@ namespace Spartan
 		return true;
 	}
 
-	bool Material::SaveToFile(const std::string& file_path)
+	bool Material::SaveToFile(const string& file_path)
 	{
-		// Make sure the path is relative
-		SetResourceFilePath(FileSystem::GetRelativeFilePath(file_path));
-
-		// Add material extension if not present
-		if (FileSystem::GetExtensionFromFilePath(GetResourceFilePath()) != EXTENSION_MATERIAL)
-		{
-			SetResourceFilePath(GetResourceFilePath() + EXTENSION_MATERIAL);
-		}
+        SetResourceFilePath(file_path);
 
 		auto xml = make_unique<XmlDocument>();
 		xml->AddNode("Material");
-		xml->AddAttribute("Material", "Name",					GetResourceName());
-		xml->AddAttribute("Material", "Path",					GetResourceFilePath());
 		xml->AddAttribute("Material", "Cull_Mode",				uint32_t(m_cull_mode));	
 		xml->AddAttribute("Material", "Shading_Mode",			uint32_t(m_shading_mode));
 		xml->AddAttribute("Material", "Color",					m_color_albedo);
@@ -135,19 +123,21 @@ namespace Spartan
 			auto tex_node = "Texture_" + to_string(i);
 			xml->AddChildNode("Textures", tex_node);
 			xml->AddAttribute(tex_node, "Texture_Type", static_cast<uint32_t>(texture.first));
-			xml->AddAttribute(tex_node, "Texture_Name", texture.second ? texture.second->GetResourceName() : NOT_ASSIGNED);
-			xml->AddAttribute(tex_node, "Texture_Path", texture.second ? texture.second->GetResourceFilePath() : NOT_ASSIGNED);
+			xml->AddAttribute(tex_node, "Texture_Name", texture.second ? texture.second->GetResourceName() : "");
+			xml->AddAttribute(tex_node, "Texture_Path", texture.second ? texture.second->GetResourceFilePathNative() : "");
 			i++;
 		}
 
-		return xml->Save(GetResourceFilePath());
+		return xml->Save(GetResourceFilePathNative());
 	}
 
 	void Material::SetTextureSlot(const TextureType type, const shared_ptr<RHI_Texture>& texture)
 	{
 		if (texture)
 		{
-			m_textures[type] = texture;		
+            // In order for the material to guarantee serialization/deserialization we cache the texture
+            auto texture_cached = m_context->GetSubsystem<ResourceCache>()->Cache(texture);
+			m_textures[type] = texture_cached != nullptr ? texture_cached : texture;
 		}
 		else
 		{
@@ -176,19 +166,28 @@ namespace Spartan
 			if (!texture.second)
 				continue;
 
-			if (texture.second->GetResourceFilePath() == path)
+			if (texture.second->GetResourceFilePathNative() == path)
 				return true;
 		}
 
 		return false;
 	}
 
-	const string& Material::GetTexturePathByType(const TextureType type)
+    bool Material::HasTexture(const TextureType type)
+    {
+        if (m_textures.empty())
+            return false;
+
+        auto pair = m_textures.find(type);
+        return pair != m_textures.end() && pair->second != nullptr;
+    }
+
+    string Material::GetTexturePathByType(const TextureType type)
 	{
 		if (!HasTexture(type))
-			return NOT_ASSIGNED;
+			return "";
 
-		return m_textures[type]->GetResourceFilePath();
+		return m_textures[type]->GetResourceFilePathNative();
 	}
 
 	vector<string> Material::GetTexturePaths()
@@ -199,7 +198,7 @@ namespace Spartan
 			if (!texture.second)
 				continue;
 
-			paths.emplace_back(texture.second->GetResourceFilePath());
+			paths.emplace_back(texture.second->GetResourceFilePathNative());
 		}
 
 		return paths;
@@ -229,7 +228,7 @@ namespace Spartan
 		m_shader = GetOrCreateShader(shader_flags);
 	}
 
-	const std::shared_ptr<ShaderVariation>& Material::GetOrCreateShader(const unsigned long shader_flags)
+	std::shared_ptr<ShaderVariation> Material::GetOrCreateShader(const unsigned long shader_flags)
 	{
 		if (!m_context)
 		{
@@ -246,7 +245,8 @@ namespace Spartan
 		auto shader = make_shared<ShaderVariation>(m_rhi_device, m_context);
 		const auto dir_shaders = m_context->GetSubsystem<ResourceCache>()->GetDataDirectory(Asset_Shaders);
 		shader->Compile(dir_shaders + "GBuffer.hlsl", shader_flags);
-		return move(shader);
+
+		return shader;
 	}
 
 	bool Material::UpdateConstantBuffer()

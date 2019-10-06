@@ -25,8 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Components/Transform.h"
 #include "Components/Camera.h"
 #include "Components/Light.h"
-#include "Components/Script.h"
-#include "Components/Skybox.h"
+#include "Components/Environment.h"
 #include "Components/AudioListener.h"
 #include "../Core/Engine.h"
 #include "../Core/Stopwatch.h"
@@ -47,18 +46,17 @@ namespace Spartan
 {
 	World::World(Context* context) : ISubsystem(context)
 	{
-		m_isDirty	= true;
-		m_state		= Ticking;
-		
 		// Subscribe to events
-		SUBSCRIBE_TO_EVENT(Event_World_Resolve, [this](Variant) { m_isDirty = true; });
-		SUBSCRIBE_TO_EVENT(Event_World_Stop,	[this](Variant)	{ m_state = Idle; });
-		SUBSCRIBE_TO_EVENT(Event_World_Start,	[this](Variant)	{ m_state = Ticking; });
+		SUBSCRIBE_TO_EVENT(Event_World_Resolve_Pending, [this](Variant) { m_is_dirty = true; });
+		SUBSCRIBE_TO_EVENT(Event_World_Stop,	        [this](Variant)	{ m_state = Idle; });
+		SUBSCRIBE_TO_EVENT(Event_World_Start,	        [this](Variant)	{ m_state = Ticking; });
 	}
 
 	World::~World()
 	{
 		Unload();
+        m_input     = nullptr;
+        m_profiler  = nullptr;
 	}
 
 	bool World::Initialize()
@@ -67,7 +65,7 @@ namespace Spartan
 		m_profiler	= m_context->GetSubsystem<Profiler>().get();
 
 		CreateCamera();
-		CreateSkybox();
+		CreateEnvironment();
 		CreateDirectionalLight();
 
 		return true;
@@ -86,57 +84,71 @@ namespace Spartan
 
         TIME_BLOCK_START_CPU(m_profiler);
 
-		// Tick entities
+        // Tick entities
 		{
-			// Detect game toggling
-			const auto started	= m_context->m_engine->EngineMode_IsSet(Engine_Game) && m_wasInEditorMode;
-			const auto stopped	= !m_context->m_engine->EngineMode_IsSet(Engine_Game) && !m_wasInEditorMode;
-			m_wasInEditorMode	= !m_context->m_engine->EngineMode_IsSet(Engine_Game);
+            // Detect game toggling
+            const auto started      = m_context->m_engine->EngineMode_IsSet(Engine_Game) && m_was_in_editor_mode;
+            const auto stopped      = !m_context->m_engine->EngineMode_IsSet(Engine_Game) && !m_was_in_editor_mode;
+            m_was_in_editor_mode    = !m_context->m_engine->EngineMode_IsSet(Engine_Game);
 
-			// Start
-			if (started)
-			{
-				for (const auto& entity : m_entities_primary)
-				{
-					entity->Start();
-				}
-			}
-			// Stop
-			if (stopped)
-			{
-				for (const auto& entity : m_entities_primary)
-				{
-					entity->Stop();
-				}
-			}
-			// Tick
-			for (const auto& entity : m_entities_primary)
-			{
-				entity->Tick(delta_time);
-			}
+            // Start
+            if (started)
+            {
+                for (const auto& entity : m_entities)
+                {
+                    entity->Start();
+                }
+            }
+
+            // Stop
+            if (stopped)
+            {
+                for (const auto& entity : m_entities)
+                {
+                    entity->Stop();
+                }
+            }
+
+            // Tick
+            for (const auto& entity : m_entities)
+            {
+                entity->Tick(delta_time);
+            }
 		}
+
+        if (m_is_dirty)
+        {
+            // Update dirty entities
+            {
+                // Make a copy so we can iterate while removing entities
+                auto entities_copy = m_entities;
+
+                for (const auto& entity : entities_copy)
+                {
+                    if (entity->IsPendingDestruction())
+                    {
+                        _EntityRemove(entity);
+                    }
+                }
+            }
+
+            // Notify Renderer
+            FIRE_EVENT_DATA(Event_World_Resolve_Complete, m_entities);
+            m_is_dirty = false;
+        }
 
         TIME_BLOCK_END(m_profiler);
-
-		if (m_isDirty)
-		{
-			m_entities_secondary = m_entities_primary;
-			// Submit to the Renderer
-			FIRE_EVENT_DATA(Event_World_Submit, m_entities_secondary);
-			m_isDirty = false;
-		}
 	}
 
 	void World::Unload()
 	{
+        // Notify any systems that the entities are about to be cleared
 		FIRE_EVENT(Event_World_Unload);
 
-		m_entities_primary.clear();
-		m_entities_primary.shrink_to_fit();
+        m_entities.clear();
+        m_entities.shrink_to_fit();
 
-		m_isDirty = true;
-		
-		// Don't clear secondary m_entities_secondary as they might be used by the renderer
+		m_is_dirty = true;
 	}
 
 	bool World::SaveToFile(const string& filePathIn)
@@ -229,7 +241,7 @@ namespace Spartan
 		FIRE_EVENT(Event_World_Load);
 
 		// Load root entity count
-		auto root_entity_count = file->ReadAs<uint32_t>();
+        const auto root_entity_count = file->ReadAs<uint32_t>();
 
 		ProgressReport::Get().SetJobCount(g_progress_world, root_entity_count);
 
@@ -243,11 +255,11 @@ namespace Spartan
 		// Serialize root entities
 		for (uint32_t i = 0; i < root_entity_count; i++)
 		{
-			m_entities_primary[i]->Deserialize(file.get(), nullptr);
+			m_entities[i]->Deserialize(file.get(), nullptr);
 			ProgressReport::Get().IncrementJobsDone(g_progress_world);
 		}
 
-		m_isDirty	= true;
+		m_is_dirty	= true;
 		m_state		= Ticking;
 		ProgressReport::Get().SetIsLoading(g_progress_world, false);	
 		LOG_INFO("Loading took " + to_string(static_cast<int>(timer.GetElapsedTimeMs())) + " ms");	
@@ -256,19 +268,21 @@ namespace Spartan
 		return true;
 	}
 
-	shared_ptr<Entity>& World::EntityCreate()
-	{
-		auto entity = make_shared<Entity>(m_context);
-		entity->Initialize(entity->AddComponent<Transform>().get());
-		return m_entities_primary.emplace_back(entity);
-	}
+    shared_ptr<Entity>& World::EntityCreate(bool is_active /*= true*/)
+    {
+        auto& entity = m_entities.emplace_back(make_shared<Entity>(m_context));
+        entity->SetActive(is_active);
+        return entity;
+    }
 
-	shared_ptr<Entity>& World::EntityAdd(const shared_ptr<Entity>& entity)
-	{
+    shared_ptr<Entity>& World::EntityAdd(const shared_ptr<Entity>& entity)
+    {
+        static shared_ptr<Entity> empty;
+
 		if (!entity)
-			return m_entity_empty;
+			return empty;
 
-		return m_entities_primary.emplace_back(entity);
+		return m_entities.emplace_back(entity);
 	}
 
 	bool World::EntityExists(const shared_ptr<Entity>& entity)
@@ -279,47 +293,21 @@ namespace Spartan
 		return EntityGetById(entity->GetId()) != nullptr;
 	}
 
-	// Removes an entity and all of it's children
 	void World::EntityRemove(const shared_ptr<Entity>& entity)
 	{
 		if (!entity)
 			return;
 
-		// Remove any descendants
-		auto children = entity->GetTransform_PtrRaw()->GetChildren();
-		for (const auto& child : children)
-		{
-			EntityRemove(child->GetEntity_PtrShared());
-		}
-
-		// Keep a reference to it's parent (in case it has one)
-		auto parent = entity->GetTransform_PtrRaw()->GetParent();
-
-		// Remove this entity
-		for (auto it = m_entities_primary.begin(); it < m_entities_primary.end();)
-		{
-			const auto temp = *it;
-			if (temp->GetId() == entity->GetId())
-			{
-				it = m_entities_primary.erase(it);
-				break;
-			}
-			++it;
-		}
-
-		// If there was a parent, update it
-		if (parent)
-		{
-			parent->AcquireChildren();
-		}
-
-		m_isDirty = true;
+        // Mark for destruction but don't delete now
+	    // as the Renderer might still be using it.
+        entity->MarkForDestruction();
+        m_is_dirty = true;
 	}
 
 	vector<shared_ptr<Entity>> World::EntityGetRoots()
 	{
 		vector<shared_ptr<Entity>> root_entities;
-		for (const auto& entity : m_entities_primary)
+		for (const auto& entity : m_entities)
 		{
 			if (entity->GetTransform_PtrRaw()->IsRoot())
 			{
@@ -332,33 +320,67 @@ namespace Spartan
 
 	const shared_ptr<Entity>& World::EntityGetByName(const string& name)
 	{
-		for (const auto& entity : m_entities_primary)
+		for (const auto& entity : m_entities)
 		{
 			if (entity->GetName() == name)
 				return entity;
 		}
 
-		return m_entity_empty;
+        static shared_ptr<Entity> empty;
+		return empty;
 	}
 
 	const shared_ptr<Entity>& World::EntityGetById(const uint32_t id)
 	{
-		for (const auto& entity : m_entities_primary)
+		for (const auto& entity : m_entities)
 		{
 			if (entity->GetId() == id)
 				return entity;
 		}
 
-		return m_entity_empty;
+        static shared_ptr<Entity> empty;
+		return empty;
 	}
 
-	shared_ptr<Entity>& World::CreateSkybox()
-	{
-		auto& skybox = EntityCreate();
-		skybox->SetName("Skybox");
-		skybox->AddComponent<Skybox>();
+    // Removes an entity and all of it's children
+    void World::_EntityRemove(const std::shared_ptr<Entity>& entity)
+    {
+        // Remove any descendants
+        auto children = entity->GetTransform_PtrRaw()->GetChildren();
+        for (const auto& child : children)
+        {
+            EntityRemove(child->GetEntity_PtrShared());
+        }
 
-		return skybox;
+        // Keep a reference to it's parent (in case it has one)
+        auto parent = entity->GetTransform_PtrRaw()->GetParent();
+
+        // Remove this entity
+        for (auto it = m_entities.begin(); it < m_entities.end();)
+        {
+            const auto temp = *it;
+            if (temp->GetId() == entity->GetId())
+            {
+                it = m_entities.erase(it);
+                break;
+            }
+            ++it;
+        }
+
+        // If there was a parent, update it
+        if (parent)
+        {
+            parent->AcquireChildren();
+        }
+    }
+
+	shared_ptr<Entity>& World::CreateEnvironment()
+	{
+		auto& environment = EntityCreate();
+		environment->SetName("Environment");
+		environment->AddComponent<Environment>()->LoadDefault();
+
+		return environment;
 	}
 	shared_ptr<Entity> World::CreateCamera()
 	{
@@ -385,7 +407,6 @@ namespace Spartan
 
 		auto light_comp = light->AddComponent<Light>().get();
 		light_comp->SetLightType(LightType_Directional);
-		light_comp->SetIntensity(1.5f);
 
 		return light;
 	}

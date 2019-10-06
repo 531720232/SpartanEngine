@@ -49,8 +49,9 @@ namespace Spartan
 		ComponentType_Renderable,
 		ComponentType_RigidBody,
 		ComponentType_Script,
-		ComponentType_Skybox,
+		ComponentType_Environment,
 		ComponentType_Transform,
+        ComponentType_Terrain,
 		ComponentType_Unknown
 	};
 
@@ -63,7 +64,7 @@ namespace Spartan
 	class SPARTAN_CLASS IComponent : public Spartan_Object
 	{
 	public:
-		IComponent(Context* context, Entity* entity, Transform* transform);
+		IComponent(Context* context, Entity* entity, uint32_t id = 0, Transform* transform = nullptr);
 		virtual ~IComponent() = default;
 
 		// Runs when the component gets added
@@ -92,16 +93,16 @@ namespace Spartan
 		static constexpr ComponentType TypeToEnum();
 		//==========================================
 
-		//= PROPERTIES ==========================================================================
+		//= PROPERTIES ============================================================================
 		Entity*						GetEntity_PtrRaw()		const{ return m_entity; }	
 		std::weak_ptr<Entity>		GetEntity_PtrWeak()		const { return GetEntity_PtrShared(); }
 		std::shared_ptr<Entity>		GetEntity_PtrShared()	const;
-		const std::string& GetEntityName() const;
+		std::string GetEntityName() const;
 
-		Transform* GetTransform() const			{ return m_transform; }
-		Context* GetContext() const				{ return m_context; }
-		constexpr ComponentType GetType() const	{ return m_type; }
-		void SetType(const ComponentType type)	{ m_type = type; }
+		Transform* GetTransform() const		{ return m_transform; }
+		Context* GetContext() const			{ return m_context; }
+		ComponentType GetType() const	    { return m_type; }
+        void SetType(ComponentType type)    { m_type = type; }
 
 		const auto& GetAttributes() const { return m_attributes; }
 		void SetAttributes(const std::vector<Attribute>& attributes)
@@ -111,7 +112,7 @@ namespace Spartan
 				m_attributes[i].setter(attributes[i].getter());
 			}
 		}
-		//=======================================================================================
+		//=========================================================================================
 
 	protected:
 		#define REGISTER_ATTRIBUTE_GET_SET(getter, setter, type) RegisterAttribute(		\

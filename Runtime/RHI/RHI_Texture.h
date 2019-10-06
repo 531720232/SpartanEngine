@@ -74,9 +74,11 @@ namespace Spartan
 
 		// Data
 		const auto& GetData() const										{ return m_data; }		
-		void SetData(const std::vector<std::vector<std::byte>>& data)	{ m_data = data; }
-		std::vector<std::byte>* GetData(uint32_t mipmap_index);
-		auto AddMipmap()												{ return &m_data.emplace_back(std::vector<std::byte>()); }
+        void SetData(const std::vector<std::vector<std::byte>>& data)   { m_data = data; }
+        auto AddMipmap()                                                { return &m_data.emplace_back(std::vector<std::byte>()); }
+        bool HasMipmaps()                                               { return !m_data.empty();  }
+        std::vector<std::byte>* GetData(uint32_t mipmap_index);
+        std::vector<std::byte> GetMipmap(uint32_t index);
 
 		// GPU resources
 		auto GetResource_Texture() const								{ return m_resource_texture; }

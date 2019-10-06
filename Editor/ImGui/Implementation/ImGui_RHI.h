@@ -87,7 +87,7 @@ namespace ImGui::RHI
 		{
 			g_sampler				= make_shared<RHI_Sampler>(g_rhi_device, SAMPLER_BILINEAR, Sampler_Address_Wrap, Comparison_Always);
 			g_constant_buffer		= make_shared<RHI_ConstantBuffer>(g_rhi_device); g_constant_buffer->Create<Matrix>();
-			g_vertex_buffer			= make_shared<RHI_VertexBuffer>(g_rhi_device, sizeof(ImDrawVert));
+			g_vertex_buffer			= make_shared<RHI_VertexBuffer>(g_rhi_device, static_cast<uint32_t>(sizeof(ImDrawVert)));
 			g_index_buffer			= make_shared<RHI_IndexBuffer>(g_rhi_device);
 			g_depth_stencil_state	= make_shared<RHI_DepthStencilState>(g_rhi_device, false, g_renderer->GetComparisonFunction());
 
@@ -326,12 +326,12 @@ namespace ImGui::RHI
 		}
 	}
 
-	inline void OnResize(const unsigned int width, const unsigned int height)
+	inline void OnResize(const float width, const float height)
 	{
 		if (!g_renderer || !g_renderer->GetSwapChain())
 			return;
 
-        g_renderer->GetSwapChain()->Resize(width, height);
+        g_renderer->GetSwapChain()->Resize(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 	}
 
 	//--------------------------------------------
@@ -352,8 +352,8 @@ namespace ImGui::RHI
 			static_cast<uint32_t>(viewport->Size.x),
 			static_cast<uint32_t>(viewport->Size.y),
 			Format_R8G8B8A8_UNORM,
-			Present_Immediate,
-			2
+			2,
+            Present_Immediate | Swap_Flip_Discard
 		);
 	}
 

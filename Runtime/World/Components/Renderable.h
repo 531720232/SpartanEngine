@@ -52,7 +52,7 @@ namespace Spartan
 	class SPARTAN_CLASS Renderable : public IComponent
 	{
 	public:
-		Renderable(Context* context, Entity* entity, Transform* transform);
+		Renderable(Context* context, Entity* entity, uint32_t id = 0);
 		~Renderable() = default;
 
 		//= ICOMPONENT ===============================
@@ -70,8 +70,9 @@ namespace Spartan
 			const Math::BoundingBox& aabb, 
 			Model* model
 		);
+        void GeometryClear();
+        void GeometrySet(Geometry_Type type);
 		void GeometryGet(std::vector<uint32_t>* indices, std::vector<RHI_Vertex_PosTexNorTan>* vertices) const;
-		void GeometrySet(Geometry_Type type);
 		auto GeometryIndexOffset()	const { return m_geometryIndexOffset; }
 		auto GeometryIndexCount()	const { return m_geometryIndexCount; }		
 		auto GeometryVertexOffset() const { return m_geometryVertexOffset; }
@@ -80,18 +81,17 @@ namespace Spartan
 		const auto& GeometryName()	const { return m_geometryName; }
 		const auto& GeometryModel() const { return m_model; }
 		const Math::BoundingBox& GetAabb();
-        const Math::BoundingBox& GetOobb();
 		//=====================================================================================================
 
 		//= MATERIAL ============================================================
 		// Sets a material from memory (adds it to the resource cache by default)
-		void MaterialSet(const std::shared_ptr<Material>& material);
+		void SetMaterial(const std::shared_ptr<Material>& material);
 
 		// Loads a material and the sets it
-		std::shared_ptr<Material> MaterialSet(const std::string& file_path);
+		std::shared_ptr<Material> SetMaterial(const std::string& file_path);
 
 		void UseDefaultMaterial();
-		const std::string& GetMaterialName();
+		std::string GetMaterialName();
 		const auto& GetMaterial()	const { return m_material; }
 		auto HasMaterial()			const { return m_material != nullptr; }
 		//=======================================================================
@@ -118,7 +118,7 @@ namespace Spartan
         bool m_is_dirty                 = true;
         bool m_castShadows              = true;
         bool m_receiveShadows           = true;
-		bool m_materialDefault;
+		bool m_material_default;
         std::shared_ptr<Material> m_material;
 	};
 }

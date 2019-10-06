@@ -32,14 +32,16 @@ namespace Spartan::Math
 	class Frustum
 	{
 	public:
-		Frustum() {}
-		~Frustum() {}
+        Frustum() = default;
+        Frustum(const Matrix& mView, const Matrix& mProjection, float screenDepth);
+		~Frustum() = default;
 
-		void Construct(const Matrix& mView, const Matrix&  mProjection, float screenDepth);
-		Intersection CheckCube(const Vector3& center, const Vector3& extent);
-		Intersection CheckSphere(const Vector3& center, float radius);
+        bool IsVisible(const Vector3& center, const Vector3& extent, bool ignore_near_plane = false);
 
 	private:
+        Intersection CheckCube(const Vector3& center, const Vector3& extent);
+        Intersection CheckSphere(const Vector3& center, float radius);
+
 		Plane m_planes[6];
 	};
 }

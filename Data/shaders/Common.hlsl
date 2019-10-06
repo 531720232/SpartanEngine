@@ -19,8 +19,10 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+//= INCLUDES ================
 #include "Common_Vertex.hlsl"
 #include "Common_Buffer.hlsl"
+//===========================
 
 /*------------------------------------------------------------------------------
 								[GLOBALS]
@@ -40,15 +42,16 @@ struct Material
 	float3 padding;
 	float emissive;
 	float3 F0;
-	float roughness_alpha;
 };
 
 struct Light
 {
-	float3 color;
-	float intensity;
-	float3 direction;
-	float padding;
+	float3	color;
+	float	intensity;
+	float3	position;
+	float	range;
+	float3	direction;
+    float 	angle;
 };
 
 /*------------------------------------------------------------------------------
@@ -185,5 +188,8 @@ float micro_shadow(float ao, float3 N, float3 L, float shadow)
 	float microShadow 	= saturate(abs(dot(L, N)) + aperture - 1.0f);
 	return shadow * microShadow;
 }
+
 bool is_saturated(float value) 	{ return value == saturate(value); }
 bool is_saturated(float2 value) { return is_saturated(value.x) && is_saturated(value.y); }
+bool is_saturated(float3 value) { return is_saturated(value.x) && is_saturated(value.y) && is_saturated(value.z); }
+bool is_saturated(float4 value) { return is_saturated(value.x) && is_saturated(value.y) && is_saturated(value.z) && is_saturated(value.w); }

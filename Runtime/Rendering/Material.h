@@ -71,18 +71,18 @@ namespace Spartan
 		void SetTextureSlot(const TextureType type, const std::shared_ptr<RHI_TextureCube>& texture);
 		auto GetResources() const { return m_resources; }
 		bool HasTexture(const std::string& path);
-		const std::string& GetTexturePathByType(TextureType type);
+        bool HasTexture(const TextureType type);
+		std::string GetTexturePathByType(TextureType type);
 		std::vector<std::string> GetTexturePaths();
-		bool HasTexture(const TextureType type) { return m_textures.find(type) != m_textures.end(); }
 		const auto& GetTexture(const TextureType type) { return HasTexture(type) ? m_textures[type] : m_texture_empty; }
 		//==============================================================================================================
 
-		//= SHADER ===========================================================================
+		//= SHADER ====================================================================
 		void AcquireShader();
-		const std::shared_ptr<ShaderVariation>& GetOrCreateShader(unsigned long shader_flags);
+		std::shared_ptr<ShaderVariation> GetOrCreateShader(unsigned long shader_flags);
 		const auto& GetShader() const { return m_shader; }
 		auto HasShader()		const { return GetShader() != nullptr; }
-		//====================================================================================
+		//=============================================================================
 
 		//= CONSTANT BUFFER ===================================================
 		bool UpdateConstantBuffer();

@@ -53,7 +53,7 @@ namespace Spartan
 		std::string m_versionFreeImage;
 		std::string m_versionFreeType;
 		std::string m_versionImGui;
-		std::string m_versionPugiXML = "1.90";
+        std::string m_versionPugiXML;
 		std::string m_versionGraphicsAPI;
 
     private:
@@ -66,6 +66,7 @@ namespace Spartan
 		bool m_is_fullscreen				= false;
 		bool m_is_mouse_visible				= true;
 		uint32_t m_shadow_map_resolution	= 0;
+        uint32_t m_renderer_flags           = 0;
         Math::Vector2 m_resolution          = Math::Vector2::Zero;
 		uint32_t m_anisotropy				= 0;
 		uint32_t m_max_thread_count			= 0;

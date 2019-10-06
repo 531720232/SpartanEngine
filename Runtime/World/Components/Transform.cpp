@@ -36,7 +36,7 @@ using namespace Spartan::Math;
 
 namespace Spartan
 {
-	Transform::Transform(Context* context, Entity* entity, Transform* transform) : IComponent(context, entity, transform)
+	Transform::Transform(Context* context, Entity* entity, uint32_t id /*= 0*/) : IComponent(context, entity, id, this)
 	{
 		m_positionLocal		= Vector3::Zero;
 		m_rotationLocal		= Quaternion(0, 0, 0, 1);
@@ -66,7 +66,7 @@ namespace Spartan
 		stream->Write(m_rotationLocal);
 		stream->Write(m_scaleLocal);
 		stream->Write(m_lookAt);
-		stream->Write(m_parent ? m_parent->GetEntity_PtrRaw()->GetId() : NOT_ASSIGNED_HASH);
+		stream->Write(m_parent ? m_parent->GetEntity_PtrRaw()->GetId() : 0);
 	}
 
 	void Transform::Deserialize(FileStream* stream)
@@ -78,7 +78,7 @@ namespace Spartan
 		uint32_t parententity_id = 0;
 		stream->Read(&parententity_id);
 
-		if (parententity_id != NOT_ASSIGNED_HASH)
+		if (parententity_id != 0)
 		{
 			if (const auto parent = GetContext()->GetSubsystem<World>()->EntityGetById(parententity_id))
 			{
@@ -424,14 +424,22 @@ namespace Spartan
 
 	void Transform::UpdateConstantBufferLight(const shared_ptr<RHI_Device>& rhi_device, const Matrix& view_projection, const uint32_t cascade_index)
 	{
-		// Has to match GBuffer.hlsl
-		if (cascade_index >=  static_cast<uint32_t>(m_light_cascades.size()))
+		// Add cascade if needed
+		if (cascade_index >= static_cast<uint32_t>(m_light_cascades.size()))
 		{
 			LightCascade cb_light;
 			cb_light.buffer = make_shared<RHI_ConstantBuffer>(rhi_device);
 			cb_light.buffer->Create<Matrix>();
 			m_light_cascades.emplace_back(cb_light);
 		}
+
+        // Ensure we have enough cascades
+        if (cascade_index >= static_cast<uint32_t>(m_light_cascades.size()))
+        {
+            LOG_ERROR_INVALID_PARAMETER();
+            return;
+        }
+
 		auto& cb_light = m_light_cascades[cascade_index];
 
 		// Determine if the buffer needs to update
@@ -445,7 +453,19 @@ namespace Spartan
 		cb_light.buffer->Unmap();
 	}
 
-	Matrix Transform::GetParentTransformMatrix() const
+    const shared_ptr<RHI_ConstantBuffer>& Transform::GetConstantBufferLight(const uint32_t cascade_index)
+    {
+        static shared_ptr<RHI_ConstantBuffer> empty;
+        if (cascade_index >= m_light_cascades.size())
+        {
+            LOG_ERROR_INVALID_PARAMETER();
+            return empty;
+        }
+
+        return m_light_cascades[cascade_index].buffer;
+    }
+
+    Matrix Transform::GetParentTransformMatrix() const
 	{
 		return HasParent() ? GetParent()->GetMatrix() : Matrix::Identity;
 	}

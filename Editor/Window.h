@@ -4,6 +4,7 @@
 #include <string>
 #include <Windows.h>
 #include <functional>
+#include "Core/Engine.h"
 #include "FileSystem/FileSystem.h"
 //================================
 
@@ -11,42 +12,69 @@ namespace Window
 {
 	static HINSTANCE g_instance;
 	static HWND g_handle;
-	static std::function<LRESULT(HWND, UINT, WPARAM, LPARAM)> g_OnMessage;
-	static std::function<void(int, int)> g_onResize;
+	static std::function<void(Spartan::WindowData& window_data)> g_on_message;
+
+    inline void GetWindowSize(float* width, float* height)
+    {
+        RECT rect;
+        ::GetClientRect(g_handle, &rect);
+        *width  = static_cast<float>(rect.right - rect.left);
+        *height = static_cast<float>(rect.bottom - rect.top);
+    }
+
+    inline uint32_t GetWidth()
+    {
+        RECT rect;
+        GetClientRect(g_handle, &rect);
+        return static_cast<uint32_t>(rect.right - rect.left);
+    }
+
+    inline uint32_t GetHeight()
+    {
+        RECT rect;
+        GetClientRect(g_handle, &rect);
+        return static_cast<uint32_t>(rect.bottom - rect.top);
+    }
 
 	// Window Procedure
 	inline LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
-		g_OnMessage(hwnd, msg, wParam, lParam);
+        LRESULT result = 0;
 
-		switch(msg)
-		{
-			case WM_DISPLAYCHANGE:
-				if (g_onResize) g_onResize(lParam & 0xffff, (lParam >> 16) & 0xffff);
-			break;
+        Spartan::WindowData window_data;
+        window_data.handle                  = static_cast<void*>(g_handle);
+        window_data.instance                = static_cast<void*>(g_instance);
+        window_data.message                 = static_cast<uint32_t>(msg);
+        window_data.wparam                  = static_cast<uint64_t>(wParam);
+        window_data.lparam                  = static_cast<int64_t>(lParam);
+        window_data.monitor_width           = GetSystemMetrics(SM_CXSCREEN);
+        window_data.monitor_height          = GetSystemMetrics(SM_CYSCREEN);
+        window_data.monitor_width_virtual   = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        window_data.monitor_height_virtual  = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        GetWindowSize(&window_data.width, &window_data.height);
 
-			case WM_SIZE:
-				if (g_onResize) g_onResize(lParam & 0xffff, (lParam >> 16) & 0xffff);
-			break;
+        if (msg == WM_DISPLAYCHANGE || msg == WM_SIZE)
+        { 
+            window_data.width   = static_cast<float>(lParam & 0xffff);
+            window_data.height  = static_cast<float>((lParam >> 16) & 0xffff);
+        }
+        else if (msg == WM_CLOSE)
+        {
+            PostQuitMessage(0);
+        }
+        else
+        {
+            result = DefWindowProc(hwnd, msg, wParam, lParam);
+        }
 
-			case WM_CLOSE:
-				PostQuitMessage(0);	
-			break;
-        
-    		default:
-				return DefWindowProc(hwnd, msg, wParam, lParam);
-		}
+        if (g_on_message)
+        {
+            g_on_message(window_data);
+        }
 
-		return 0;
+        return result;
 	}
 
-	inline void GetWindowSize(float* width, float* height)
-	{
-		RECT rect;
-		::GetClientRect(g_handle, &rect);
-		(*width)	= (float)(rect.right - rect.left);
-		(*height)	= (float)(rect.bottom - rect.top);
-	}
 	inline bool Create(HINSTANCE instance, const std::string& title)
 	{
 		g_instance = instance;
@@ -107,30 +135,20 @@ namespace Window
 	{
 		MSG msg;
 		ZeroMemory(&msg, sizeof(msg));
-		if (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+
+        while(PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+
+            if (msg.message == WM_QUIT)
+                return false;
 		}
 
-		return msg.message != WM_QUIT;
+        return true;
 	}
 
-	inline int GetWidth()
-	{
-		RECT rect;
-		GetClientRect(g_handle, &rect);
-		return (int)(rect.right - rect.left);
-	}
-
-	inline int GetHeight()
-	{
-		RECT rect;
-		GetClientRect(g_handle, &rect);
-		return (int)(rect.bottom - rect.top);
-	}
-
-	inline void Destroy()
+    inline void Destroy()
 	{
 		DestroyWindow(g_handle);
 	}
